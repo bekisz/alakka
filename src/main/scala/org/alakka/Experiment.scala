@@ -2,7 +2,7 @@ package org.alakka
 
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
-import org.alakka.Experiment.TrialResponseWrapper
+
 
 
 
@@ -12,7 +12,7 @@ object Experiment {
   case class StartCommand() extends Message
 
 
-  case class TrialResponseWrapper(trialResponse:Trial.Response) extends Message
+  case class WrappedResponse[T](trialResponse:T) extends Message
   def apply(): Behavior[Message] = {
     Behaviors.setup(context => new Experiment(context))
   }
@@ -40,7 +40,7 @@ class Experiment(context: ActorContext[Experiment.Message]) extends AbstractBeha
         //Experiment.TrialResponseWrapper(trialResponse)
         
         val trialResponseMapper : ActorRef[Trial.Response] =
-          context.messageAdapter(trialResponse => Experiment.TrialResponseWrapper(trialResponse))
+          context.messageAdapter(trialResponse => Experiment.WrappedResponse[Trial.Response](trialResponse))
 
         trial ! Trial.StartRequest(10, trialResponseMapper)
         // this.context.self
@@ -48,10 +48,10 @@ class Experiment(context: ActorContext[Experiment.Message]) extends AbstractBeha
         println(s"Started  context.self.path : ${context.self.path.name} with ${context.self.path}")
         println(s"Started  this.context.self.path : ${this.context.self.path.name} with ${this.context.self.path}")
 
-      case Experiment.TrialResponseWrapper(trialResponse) =>
+      case Experiment.WrappedResponse(trialResponse) =>
         val startedResponse:Trial.StartedResponse = trialResponse.asInstanceOf[Trial.StartedResponse]
-        startedResponse
-        context.log.debug("Trial Response Recieved")
+
+        context.log.debug("Trial Response Received")
         println(s"Trial response received with #${startedResponse.rounds} rounds")
 
 
