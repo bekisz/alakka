@@ -2,8 +2,7 @@ package org.alakka
 
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
-
-import org.alakka.Trial.Message
+import org.alakka.Trial.{Message, StartedResponse}
 
 
 
@@ -12,7 +11,7 @@ object Trial {
   sealed trait Request extends Message
   trait Response extends Message
 
-  case class StartRequest(credit:Int = 100 /*, replyTo: ActorRef[Trial.Response] */) extends Request
+  case class StartRequest(credit:Int = 100 , replyTo: ActorRef[Trial.Response] ) extends Request
   case class StartedResponse(rounds:Long,replyTo: ActorRef[Trial.Response] ) extends Response
 
   //final case class GetValue(replyTo: ActorRef[Value]) extends Command
@@ -40,11 +39,12 @@ class Trial (context: ActorContext[Trial.Message]) extends AbstractBehavior[Tria
   override def onMessage(msg: Message): Behavior[Message] = {
 
     msg match {
-      case Trial.StartRequest(credit) =>
+      case Trial.StartRequest(credit, replyTo) =>
         context.log.debug("Trial Started")
         println(s"${this.context.self.path} : Starting with  $credit credits")
         val roundsAchieved = this.run(credit)
         println(s"${this.context.self.path} : Trial ended at coin toss #$roundsAchieved")
+        replyTo ! StartedResponse(roundsAchieved, this.context.self)
         this
 
     }
