@@ -1,19 +1,19 @@
 package org.alakka
 
 import org.alakka.utils.Time.time
+import org.apache.logging.log4j.scala.Logging
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
 import org.scalameter.utils.Statistics
 
 import scala.collection.immutable
 
-
 case class ProbabilityWithConfidence(probability:Double,confidence:Double, low:Double, high:Double) {
-  override def toString():String = {
+  override def toString:String = {
 
     val str = new StringBuilder(50)
-    str++= "["++=(f"$low%1.3f") ++= " -> " ++= f"$probability%1.3f" ++= " -> " ++= f"$high%1.3f" +"]"
-    str.toString()
+    str++= "["++=f"$low%1.3f" ++= " -> " ++= f"$probability%1.3f" ++= " -> " ++= f"$high%1.3f" +"]"
+    str.toString
   }
 }
 
@@ -39,8 +39,8 @@ class GaltonWatsonSpark(val maxPopulation:Long= 100, val seedNode:Node = new Nod
   def isSeedDominant():Boolean = _isSeedDominant
 
   def run() :GaltonWatsonSpark = {
-    // print('.')
-    // logger.info("Szabi : Doing stuff")
+    //logger.info(s"Galton-Watson experiment started with lambda=${this.seedNode.lambdaForPoisson}" )
+
     livingNodes = seedNode :: livingNodes
     while(this.livingNodes.nonEmpty && !this.isSeedDominant ) {
       var nextGenNodes = List[Node]()
@@ -59,7 +59,7 @@ class GaltonWatsonSpark(val maxPopulation:Long= 100, val seedNode:Node = new Nod
   }
 }
 
-object GaltonWatsonSpark {
+object GaltonWatsonSpark  {
 
   def main(args : Array[String]): Unit = {
 
@@ -71,10 +71,11 @@ object GaltonWatsonSpark {
 
       val dims = for(
         lambda <- BigDecimal(1.0) to BigDecimal(1.6) by BigDecimal(0.1);
-        n <- 1 to 100
+        n <- 1 to 5000
         ) yield (lambda,n)
 
       val dimensions = spark.sparkContext.parallelize(dims,10)
+
 
       println(s"Galton-Watson Simulation started with ${dimensions.count()} trials")
 
@@ -83,24 +84,23 @@ object GaltonWatsonSpark {
       val results = dimensions
         .map({case (lambda,n)
                   => new GaltonWatsonSpark(maxPopulation = 1000, seedNode = new Node(lambda.doubleValue)) })
-        .map(gw => gw.run())
+        .map(gw => gw.run()).cache()
 
 
       // -- calculate and show expected extinction time by lambda
-      val expExtinctionTime =  /*SortedMap[Double,Double]()++*/
-        results.groupBy(gw => gw.seedNode.lambdaForPoisson)
+      val expExtinctionTime = results.groupBy(gw => gw.seedNode.lambdaForPoisson)
           .map({ case (lambda, gws )
           => (lambda,gws.filter(! _.isSeedDominant() )
             .map(gw => gw.time()).reduce(_+_).toDouble / gws.count(! _.isSeedDominant() ))})
 
       println("\nExpected Extinction time by lambda  ")
-      expExtinctionTime.foreach(
+      expExtinctionTime.sortByKey().collect().foreach(
         t=> println(s"  -  E(t(*)|lambda =${t._1}) = "+ f"${t._2}%1.1f"))
 
       // -- calculate and show survival probabilities at various lambdas
 
       val confidence = 0.95
-       val survivalProbabilitiesByLambda = /* SortedMap[Double,ProbabilityWithConfidence]() ++ */
+       val survivalProbabilitiesByLambda =
         results.groupBy(gw => gw.seedNode.lambdaForPoisson)
           .map({ case (lambda, gws ) => (lambda, gws.map(gw => if(gw.isSeedDominant()) 1.0 else 0.0))})
           .map({ case (lambda, zerosAndOnes )
@@ -111,11 +111,13 @@ object GaltonWatsonSpark {
 
 
       println(s"\nSurvival Probabilities within ${confidence*100}% confidence interval by lambdas" )
-      survivalProbabilitiesByLambda.map(
+
+      survivalProbabilitiesByLambda.sortByKey().collect().foreach(
         { case (lambda, probabilityWithConfidence: ProbabilityWithConfidence )
-        => println(s"  - P(survival|lambda=$lambda) = " + probabilityWithConfidence.toString())
+        => println(s"  - P(survival|lambda=$lambda) = ${probabilityWithConfidence.toString}")
 
         })
+
       spark.stop()
 
 
