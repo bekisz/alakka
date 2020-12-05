@@ -33,14 +33,14 @@ class ExperimentController(context: ActorContext[ExperimentController.Message])
   override def onMessage(msg: ExperimentController.Message): Behavior[ExperimentController.Message] = {
     msg match {
       case ExperimentController.StartCommand(trials) =>
-        val experiment = context.spawn(Experiment(), "galton-watson-exp")
-        experiment ! Experiment.StartCommand(trials)
+        //val experiment = context.spawn(Experiment(), "galton-watson-exp")
+        //experiment ! Experiment.StartCommand(trials)
 
-        context.log.debug(s"Started ${experiment.path.name} with ${experiment.path}")
+        //context.log.debug(s"Started ${experiment.path.name} with ${experiment.path}")
 
 
-        println(s"Started  context.self.path : ${context.self.path.name} with ${context.self.path}")
-        println(s"Started  this.context.self.path : ${this.context.self.path.name} with ${this.context.self.path}")
+        //println(s"Started  context.self.path : ${context.self.path.name} with ${context.self.path}")
+        //println(s"Started  this.context.self.path : ${this.context.self.path.name} with ${this.context.self.path}")
         this
     }
 

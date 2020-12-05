@@ -2,17 +2,15 @@ package org.alakka
 
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
-import org.alakka.Trial.{Message, StartedResponse}
-
+import org.alakka.Trial.{Message}
 
 
 object Trial {
   sealed trait Message
-  sealed trait Request extends Message
   trait Response extends Message
 
-  case class StartRequest(credit:Int = 100 , replyTo: ActorRef[Trial.Response] ) extends Request
-  case class StartedResponse(rounds:Long,replyTo: ActorRef[Trial.Response] ) extends Response
+
+  case class AgentResponseAdapter(responseToConvert: Agent.Response) extends Response
 
   //final case class GetValue(replyTo: ActorRef[Value]) extends Command
   //final case class Value(n: Int)
@@ -21,30 +19,29 @@ object Trial {
     Behaviors.setup(context => new Trial(context))
   }
 }
-class Trial (context: ActorContext[Trial.Message]) extends AbstractBehavior[Trial.Message](context) {
+class Trial (context: ActorContext[Trial.Message],
+             // val examinedPopulation:Long = 1l,
+             // val initialPopulation:Long = 1l,
+             // val nrOfChildrenProbabilityFunction : ()=> Int,
+             // val maxPopulation:Long = Long.MaxValue
+            ) extends AbstractBehavior[Trial.Message](context) {
+  //Trial(context:ActorContext[Trial.Message]) {
 
+  //}
   //import Trial._
-  protected def run(initialCredit :Int) : Long = {
-      var round = 0L
-    var credit = initialCredit
+  protected def run() : Trial = {
 
-    while(credit >= 0 ) {
-        round=round + 1
-        val isHead = scala.util.Random.nextBoolean()
-        if (isHead) credit+=1 else credit-=1
-
-      }
-      round
+    this
   }
   override def onMessage(msg: Message): Behavior[Message] = {
 
     msg match {
-      case Trial.StartRequest(credit, replyTo) =>
-        context.log.debug("Trial Started")
-        println(s"${this.context.self.path} : Starting with  $credit credits")
-        val roundsAchieved = this.run(credit)
-        println(s"${this.context.self.path} : Trial ended at coin toss #$roundsAchieved")
-        replyTo ! StartedResponse(roundsAchieved, this.context.self)
+      case Trial.AgentResponseAdapter(agentResponse: Agent.Response)
+      =>
+        val initedResponse: Agent.InitedResponse = agentResponse.asInstanceOf[Agent.InitedResponse]
+
+        context.log.debug("Trial Response Received")
+        //println(s"Trial ${startedResponse.replyTo.ref} response received with #${startedResponse.rounds} rounds")
         this
 
     }

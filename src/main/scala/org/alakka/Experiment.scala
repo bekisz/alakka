@@ -1,93 +1,60 @@
 package org.alakka
-
-import akka.actor.typed.{ActorRef, Behavior}
-import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
+import akka.actor.typed.Behavior
 
 
 object Experiment {
-
-  // Messages
-  trait Message
-
-  // Request Messages
-  case class StartCommand(trials: Int = 100) extends Message
-
-  // Response Messages
-
-  //case class ResponseAdapter[T](responseToConvert: T) extends Message
-
-  case class TrialResponseAdapter(responseToConvert: Trial.Response) extends Message
-
-  //extends ResponseAdapter[Trial.Response](responseToConvert: Trial.Response)
-
-
-  def apply(): Behavior[Message] = {
-    Behaviors.setup(context => new Experiment(context))
+  def apply(trials:Int):Experiment = {
+    new Experiment(trials)
   }
 
 
 }
 
-class Experiment(context: ActorContext[Experiment.Message]) extends AbstractBehavior[Experiment.Message](context) {
-
-  //import ._
-
-  //private var n = 0
-  //case class TrialResponseWrapper(trialResponse:Trial.Response) extends Experiment.Message
-
-
-  // var trialResponse = ???
-
-  override def onMessage(msg: Experiment.Message): Behavior[Experiment.Message] = {
-    msg match {
-      case Experiment.StartCommand(trials) =>
-        context.log.debug("Experiment Started")
-        println("Experiment Started")
-        val trialResponseMapper: ActorRef[Trial.Response] =
-          context.messageAdapter(trialResponse => Experiment.TrialResponseAdapter(trialResponse))
-
-        (1 to trials)
-          .map(i => context.spawn(Trial(), name = s"trial-$i"))
-          .map(trial => trial ! Trial.StartRequest(credit = 10, replyTo = trialResponseMapper))
-
-      /*
-        for (i <- 1 to trials) {
-          val trial = context.spawn(Trial(), s"trial-$i")
-          //Experiment.TrialResponseWrapper(trialResponse)
-
-
-          trial ! Trial.StartRequest(credit = 10, replyTo = trialResponseMapper)
-          // this.context.self
-          context.log.debug(s"Started ${context.self.path.name} with ${context.self.path}")
-          println(s"Started  context.self.path : ${context.self.path.name} with ${context.self.path}")
-          println(s"Started  this.context.self.path : ${this.context.self.path.name} with ${this.context.self.path}")
-
-         */
-
-
-
-    case Experiment.TrialResponseAdapter(trialResponse)
-    =>
-    val startedResponse: Trial.StartedResponse = trialResponse.asInstanceOf[Trial.StartedResponse]
-
-    context.log.debug("Trial Response Received")
-    println(s"Trial ${startedResponse.replyTo.ref} response received with #${startedResponse.rounds} rounds")
-
-
-  }
-
-  this
-}
-
+class Experiment(trials:Int) {
 /*
-  override def onMessage(msg: Experiment.Start): Behavior[Experiment.Command] = {
-    msg match {
-      case Experiment.Start() =>
-        context.log.debug("Experiment Started")
-        println("Experiment Started")
-        this
-
+  class MyTrial(override val param1:Int, ) extends Trial {
+    override def postInit(): Unit = {
+      super.postInit()
     }
-  } */
+  }
+  class MySearchSpace {
+    def Map[Int, ]
+  }
+  object MySearchSpace() {
+    apply()
+  }
+
+  object MyTrial extends Trial {
+    //def initContants(myTrial: MyTrial): Unit = {
+     //
+    //}
+
+    def MyTrial apply(d1:Int, d2:Int) {
+      // init constants
+      val myTrial = new MyTrial()
+      // init id
+      myTrial.id = id
+      // init dims
+      myTrial.d11 = c1
+    }
+  }
+      def initVariables(id:Int, dim1:Long, dim2:Double): Unit = {
+
+        ....
+      }
+    }
+    templateTrial.init(...)
+
+    val dim1 = 0.1 to 0.9 by 0.01
+    val iso = 1 to 100 by 2
+
+    val trialRunResults = ids.map(id => SearchSpace(id))
+      .map(searchVector => MyTrial(searchVector)).foreach(run)
+    trialRunResults.reduce(result1 =>  result.x )
+  }
+
+
+*/
+
 }
 
