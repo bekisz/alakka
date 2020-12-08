@@ -1,0 +1,32 @@
+curl  -X POST --data '{"file": “file://Users/szabolcsbeki/Documents/GitHub/alakka/target/scala-2.11/alakka_2.11-1.0.jar", "className": "org.alakka.GaltonWatsonSpark"}' -H "Content-Type: application/json" -H "X-Requested-By: szabi" http://szabi-4.lab.eng.hortonworks.com:8999/batches
+
+curl -X POST -H "Content-Type: application/json" -H "X-Requested-By: szabi" --data '{"file": "file:/Users/szabolcsbeki/Documents/GitHub/alakka/target/scala-2.11/alakka_2.11-1.0.jar", "className": "org.alakka.GaltonWatsonSpark"}' http://szabi-4:8999/batches
+
+
+curl -X POST -H "Content-Type: application/json" -H "X-Requested-By: szabi" --data '{"file": "hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/alakka_2.11-1.0.jar", "className": "org.alakka.GaltonWatsonSpark", “conf”:”spark.jars.packages=com.storm-enroute:scalameter-core:0.19”}' http://szabi-4:8999/batches
+
+
+curl -X POST -H "Content-Type: application/json" -H "X-Requested-By: szabi" --data '{"file": "hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/alakka_2.11-1.0.jar", "file":"hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/scalameter_2.11-0.19.jar", "className": "org.alakka.GaltonWatsonSpark", “conf”:”spark.jars.packages=com.storm-enroute:scalameter-core:0.19”}' http://szabi-4:8999/batches
+
+curl -X POST -H "Content-Type: application/json" -H "X-Requested-By: szabi" --data '{"file": "hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/alakka_2.11-1.0.jar", "file":"hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/scalameter_2.11-0.19.jar", "className": "org.alakka.GaltonWatsonSpark"}' http://szabi-4:8999/batches
+
+curl -X POST -H "Content-Type: application/json" -H "X-Requested-By: szabi" --data '{"file": "hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/alakka_2.11-1.0.jar", "jars": ["hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/scalameter_2.11-0.19.jar"], "className": "org.alakka.GaltonWatsonSpark"}' http://szabi-4:8999/batches
+
+curl -X POST -H "Content-Type: application/json" -H "X-Requested-By: szabi" --data '{"conf": {"kind": "spark", "file": "hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/alakka_2.11-1.0.jar", "jars": "hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/scalameter_2.11-0.19.jar", "className": "org.alakka.GaltonWatsonSpark"}}' http://szabi-4:8999/batches
+
+curl -X POST -H "Content-Type: application/json" -H "X-Requested-By: szabi" --data @/Users/szabolcsbeki/Documents/GitHub/alakka/src/site/livy-batch.json http://szabi-4:8999/batches
+HDFS
+hdfs dfs -cat hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/alakka_2.11-1.0.jar
+
+Copying Jars to HDFS :
+hdfs dfs -put scalameter_2.11-0.19.jar hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/
+
+Test fat jar locally :
+java -Dspark.master=local[2] -cp alakka-assembly-1.0.jar org.alakka.GaltonWatsonSpark
+
+Run with sbt :
+sbt -J-Dspark.master=local[*] run
+
+Assembly -> Upload Jar -> Submit :
+sbt assembly && ./src/main/script/upload-submit.sh
+

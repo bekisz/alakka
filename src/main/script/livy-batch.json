@@ -1,0 +1,6 @@
+{
+  "file": "hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/alakka-assembly-1.0.jar",
+  "proxyUser": "szabi",
+  "className": "org.alakka.GaltonWatsonSpark",
+  "name": "Galton-Watson Experiment"
+}

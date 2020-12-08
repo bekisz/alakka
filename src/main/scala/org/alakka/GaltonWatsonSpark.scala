@@ -1,8 +1,8 @@
 package org.alakka
 
 import org.alakka.utils.Time.time
-import org.apache.logging.log4j.scala.Logging
 import org.apache.spark.SparkConf
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 import org.scalameter.utils.Statistics
 
@@ -12,7 +12,7 @@ case class ProbabilityWithConfidence(probability:Double,confidence:Double, low:D
   override def toString:String = {
 
     val str = new StringBuilder(50)
-    str++= "["++=f"$low%1.3f" ++= " -> " ++= f"$probability%1.3f" ++= " -> " ++= f"$high%1.3f" +"]"
+    str++= "["++=f"$low%1.5f" ++= " -> " ++= f"$probability%1.5f" ++= " -> " ++= f"$high%1.5f" +"]"
     str.toString
   }
 }
@@ -65,16 +65,16 @@ object GaltonWatsonSpark  {
 
     time {
       val conf = new SparkConf()
-        .setMaster("local[2]")
+        //.setMaster("local[2]")
         .setAppName("Replicator Experiment")
       val spark = SparkSession.builder.config(conf).getOrCreate()
 
       val dims = for(
         lambda <- BigDecimal(1.0) to BigDecimal(1.6) by BigDecimal(0.1);
-        n <- 1 to 5000
+        n <- 1 to 10000
         ) yield (lambda,n)
 
-      val dimensions = spark.sparkContext.parallelize(dims,10)
+      val dimensions = spark.sparkContext.parallelize(dims,20)
 
 
       println(s"Galton-Watson Simulation started with ${dimensions.count()} trials")
@@ -88,7 +88,7 @@ object GaltonWatsonSpark  {
 
 
       // -- calculate and show expected extinction time by lambda
-      val expExtinctionTime = results.groupBy(gw => gw.seedNode.lambdaForPoisson)
+      val expExtinctionTime: RDD[(Double, Double)] = results.groupBy(gw => gw.seedNode.lambdaForPoisson)
           .map({ case (lambda, gws )
           => (lambda,gws.filter(! _.isSeedDominant() )
             .map(gw => gw.time()).reduce(_+_).toDouble / gws.count(! _.isSeedDominant() ))})

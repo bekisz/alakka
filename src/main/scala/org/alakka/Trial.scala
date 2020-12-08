@@ -1,8 +1,8 @@
 package org.alakka
 
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
-import org.alakka.Trial.{Message}
+import org.alakka.Trial.Message
 
 
 object Trial {
@@ -19,12 +19,12 @@ object Trial {
     Behaviors.setup(context => new Trial(context))
   }
 }
-class Trial (context: ActorContext[Trial.Message],
+class Trial (context: ActorContext[Trial.Message]
              // val examinedPopulation:Long = 1l,
              // val initialPopulation:Long = 1l,
              // val nrOfChildrenProbabilityFunction : ()=> Int,
              // val maxPopulation:Long = Long.MaxValue
-            ) extends AbstractBehavior[Trial.Message](context) {
+            ) extends AbstractBehavior[Trial.Message](/*context*/) {
   //Trial(context:ActorContext[Trial.Message]) {
 
   //}

@@ -28,7 +28,7 @@ object ExperimentController {
 
 }
 class ExperimentController(context: ActorContext[ExperimentController.Message])
-  extends AbstractBehavior[ExperimentController.Message](context) {
+  extends AbstractBehavior[ExperimentController.Message](/*context*/) {
 
   override def onMessage(msg: ExperimentController.Message): Behavior[ExperimentController.Message] = {
     msg match {

@@ -25,7 +25,7 @@ object Agent {
     Behaviors.setup(context => new Agent(context))
   }
 }
-class Agent (context: ActorContext[Agent.Message]) extends AbstractBehavior[Agent.Message](context) {
+class Agent (context: ActorContext[Agent.Message]) extends AbstractBehavior[Agent.Message](/*context*/) {
 
   //import Agent._
   protected def run(initialCredit :Int) : Long = {
