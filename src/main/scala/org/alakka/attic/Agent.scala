@@ -1,9 +1,8 @@
-package org.alakka
-
+package org.alakka.attic
 
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
-import org.alakka.Agent.Message
+import org.alakka.attic.Agent.Message
 
 
 

@@ -1,5 +1,4 @@
-package org.alakka
-import akka.actor.typed.Behavior
+package org.alakka.attic
 
 
 object Experiment {

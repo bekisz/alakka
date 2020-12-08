@@ -16,10 +16,8 @@ curl -X POST -H "Content-Type: application/json" -H "X-Requested-By: szabi" --da
 
 curl -X POST -H "Content-Type: application/json" -H "X-Requested-By: szabi" --data @/Users/szabolcsbeki/Documents/GitHub/alakka/src/site/livy-batch.json http://szabi-4:8999/batches
 HDFS
-hdfs dfs -cat hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/alakka_2.11-1.0.jar
 
-Copying Jars to HDFS :
-hdfs dfs -put scalameter_2.11-0.19.jar hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/
+hdfs dfs -cat hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/alakka_2.11-1.0.jar
 
 Test fat jar locally :
 java -Dspark.master=local[2] -cp alakka-assembly-1.0.jar org.alakka.GaltonWatsonSpark

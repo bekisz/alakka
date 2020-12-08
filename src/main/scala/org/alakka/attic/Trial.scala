@@ -1,8 +1,8 @@
-package org.alakka
+package org.alakka.attic
 
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
-import org.alakka.Trial.Message
+import org.alakka.attic.Trial.Message
 
 
 object Trial {
