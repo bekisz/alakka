@@ -3,6 +3,7 @@ package org.alakka.galtonwatson
 import scala.collection.immutable
 
 
+case class TrialCase(time:Long, isSeedDominant:Boolean, lambda:Double)
 
 class Trial(val maxPopulation:Long= 100, val seedNode:Node = new Node(lambdaForPoisson = 1.0))
   extends Serializable
@@ -15,6 +16,8 @@ class Trial(val maxPopulation:Long= 100, val seedNode:Node = new Node(lambdaForP
   def time(): Long = _time
 
   private var _isSeedDominant = false
+
+
   def isSeedDominant():Boolean = _isSeedDominant
 
   def run() :Trial = {
@@ -35,6 +38,9 @@ class Trial(val maxPopulation:Long= 100, val seedNode:Node = new Node(lambdaForP
       _time +=1
     }
     this
+  }
+  def toCase(): TrialCase ={
+    TrialCase(time(), isSeedDominant(), this.seedNode.lambdaForPoisson)
   }
 }
 

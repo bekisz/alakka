@@ -3,8 +3,14 @@
   "proxyUser" : "szabi",
   "className": "org.alakka.galtonwatson.Experiment",
   "name": "Galton-Watson Experiment",
+  "driverCores" : 1,
+  "driverMemory" : "1g",
+  "numExecutors" : 4,
+  "executorMemory" : "6g",
+  "executorCores" : 3,
   "conf" : {
     "spark.driver.userClassPathFirst" : true,
     "spark.executor.userClassPathFirst" : true
   }
+
 }
