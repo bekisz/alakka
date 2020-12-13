@@ -72,27 +72,6 @@ object Experiment  {
                   noOfTrials)
       }.sort($"lambda".asc).collect().foreach( result => println(s"  - P(survival|lambda=${result.lambda}) = ${result.probabilityWithConfidence.toString}"))
 
-
-
- /*
-      val confidence = 0.95
-      val survivalProbabilitiesByLambda = results.collect().groupBy(trial => trial.lambda)
-        .map({ case (lambda, gws ) => (lambda, gws.map(gw => if(gw.isSeedDominant) 1.0 else 0.0))})
-        .map({ case (lambda, zerosAndOnes )
-        => (lambda, ProbabilityWithConfidence(probability=zerosAndOnes.reduce(_+_)/zerosAndOnes.size,
-          confidence=confidence,
-          Statistics.confidenceInterval(List() ++ zerosAndOnes, 1-confidence)._1,
-          Statistics.confidenceInterval(List() ++ zerosAndOnes, 1-confidence)._2 ))})
-
-      println(s"\nSurvival Probabilities within ${confidence*100}% confidence interval by lambdas" )
-      //SortedMap[Double,ProbabilityWithConfidence]() ++survivalProbabilitiesByLambda
-      (SortedMap[Double,ProbabilityWithConfidence]() ++ survivalProbabilitiesByLambda).foreach(
-        { case (lambda, probabilityWithConfidence: ProbabilityWithConfidence )
-        => println(s"  - P(survival|lambda=$lambda) = ${probabilityWithConfidence.toString}")
-
-        })
-
-   */
       spark.stop()
 
 

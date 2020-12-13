@@ -14,3 +14,8 @@
   }
 
 }
+
+
+"org.apache.spark" %% "spark-sql" %  sparkVersion  /* %  "provided" */,
+"org.apache.spark" %% "spark-core" % sparkVersion /* %  "provided" */,
+//"org.apache.spark" %% "spark-streaming" % "2.4.7" % "provided",

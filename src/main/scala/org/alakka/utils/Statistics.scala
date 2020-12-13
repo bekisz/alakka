@@ -25,10 +25,6 @@ object Statistics {
     k-1
   }
 
-  /** Let Y = (Y_1, ..., Y_n) data resulting from a parametric law F of
-   *  scalar parameter θ. A confidence interval (B_i, B_s) is a statistic
-   *  in the form of an interval containing θ with a specified probability.
-   */
   def confidenceInterval(noOfSamples: Long, mean : Double, stdDev : Double, confidence: Double): (Double, Double) = {
 
     val alpha = 1 - confidence
@@ -44,14 +40,14 @@ object Statistics {
 
   }
 
-  /** Quantile function for the standard (μ = 0, σ = 1) normal distribution.
+  /** Quantile function for the standard  (μ = 0, σ = 1)  normal distribution
    */
   private def qsnorm(p: Double): Double = {
     new NormalDistribution().inverseCumulativeProbability(p)
   }
 
 
-  /** Quantile function for the Student's t distribution.
+  /** Quantile function for the Student's t distribution
    *  Let 0 < p < 1. The p-th quantile of the cumulative distribution function F(x) is defined as
    *  x_p = inf{x : F(x) >= p}
    *  For most of the continuous random variables, x_p is unique and is equal to x_p = F^(-1)(p), where
