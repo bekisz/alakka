@@ -2,12 +2,20 @@
   "file": "hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/alakka-assembly-1.0.jar",
   "proxyUser": "szabi",
   "className": "org.alakka.galtonwatson.Experiment",
-  "name": "Galton-Watson Experiment",
-  "args" : ["250000"],
+  "name": "Galton-Watson Experiment with 7x500.000 v2",
+  "args" : ["1000000"],
+
+
+
   "conf" : {
 
     "spark.driver.userClassPathFirst" : false,
-    "spark.executor.userClassPathFirst" : false
+    "spark.executor.userClassPathFirst" : false,
+    "spark.driver.memory" : "1g",
+    "spark.executor.memory": "1g",
+    "spark.driver.cores" : "1",
+    "spark.executor.cores" : "1",
+    "spark.executor.instances" : "11"
   }
 
 }

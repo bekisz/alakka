@@ -1,18 +1,21 @@
 package org.alakka.galtonwatson
 
-import org.alakka.utils.ProbabilityWithConfidence
+import org.alakka.utils.{ProbabilityWithConfidence, Statistics}
 import org.alakka.utils.Time.time
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.functions.{avg, format_number}
-import org.scalameter.utils.Statistics
+import org.apache.spark.sql.functions._
 
-import scala.collection.SortedMap
 
 
 case class Dimension(lambda:Double, trialNo:Int)
+case class ResultsByLambda(lambda:Double, probabilityWithConfidence:ProbabilityWithConfidence, noOfTrials:Long) {
 
+
+}
 object Experiment  {
+
+
 
   def main(args : Array[String]): Unit = {
 
@@ -47,9 +50,31 @@ object Experiment  {
 
       val survivalProb = results
         .groupBy("lambda").agg(
-        format_number(avg($"isSeedDominant".cast("Integer")),3).as("survivalProbability"))
-        .orderBy("lambda").show()
+        avg($"isSeedDominant".cast("Integer")).as("survivalProbability"),
+        stddev($"isSeedDominant".cast("Integer")).as("stdDevProbability"),
+        count($"isSeedDominant").as("noOfTrials"))
 
+
+
+      val confidence = 0.95
+
+      println(s"\nSurvival Probabilities within ${confidence*100}% confidence interval by lambdas" )
+      val survivalProbConf = survivalProb.map {
+              row =>
+                val lambda = row.getAs[Double](0)
+                val survivalProbability =row.getAs[Double](1)
+                val stdDevProbability =row.getAs[Double](2)
+                val noOfTrials =row.getAs[Long](3)
+                val (confidenceIntervalLow, confidenceIntervalHigh)
+                  = Statistics.confidenceInterval (noOfTrials, survivalProbability, stdDevProbability, confidence)
+
+                ResultsByLambda(lambda, ProbabilityWithConfidence(survivalProbability, confidence,confidenceIntervalLow, confidenceIntervalHigh),
+                  noOfTrials)
+      }.sort($"lambda".asc).collect().foreach( result => println(s"  - P(survival|lambda=${result.lambda}) = ${result.probabilityWithConfidence.toString}"))
+
+
+
+ /*
       val confidence = 0.95
       val survivalProbabilitiesByLambda = results.collect().groupBy(trial => trial.lambda)
         .map({ case (lambda, gws ) => (lambda, gws.map(gw => if(gw.isSeedDominant) 1.0 else 0.0))})
@@ -67,7 +92,8 @@ object Experiment  {
 
         })
 
-     spark.stop()
+   */
+      spark.stop()
 
 
     }
