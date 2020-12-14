@@ -9,9 +9,12 @@ import org.apache.spark.sql.functions._
 
 
 case class Dimension(lambda:Double, trialNo:Int)
-case class ResultsByLambda(lambda:Double, probabilityWithConfidence:ProbabilityWithConfidence, noOfTrials:Long) {
-
-
+case class ResultsByLambda(lambda:Double,
+                           probabilityWithConfidence:ProbabilityWithConfidence,
+                           noOfTrials:Long, sumOfTime:Long) {
+  override def toString:String = {
+    s"  - P(survival|lambda=${lambda}) = ${probabilityWithConfidence.toString}"
+  }
 }
 object Experiment  {
 
@@ -52,7 +55,9 @@ object Experiment  {
         .groupBy("lambda").agg(
         avg($"isSeedDominant".cast("Integer")).as("survivalProbability"),
         stddev($"isSeedDominant".cast("Integer")).as("stdDevProbability"),
-        count($"isSeedDominant").as("noOfTrials"))
+        count($"isSeedDominant").as("noOfTrials"),
+        sum($"time").as("sumOfTime"))
+
 
 
 
@@ -65,18 +70,21 @@ object Experiment  {
                 val survivalProbability =row.getAs[Double](1)
                 val stdDevProbability =row.getAs[Double](2)
                 val noOfTrials =row.getAs[Long](3)
+
                 val (confidenceIntervalLow, confidenceIntervalHigh)
                   = Statistics.confidenceInterval (noOfTrials, survivalProbability, stdDevProbability, confidence)
 
                 ResultsByLambda(lambda, ProbabilityWithConfidence(survivalProbability, confidence,confidenceIntervalLow, confidenceIntervalHigh),
-                  noOfTrials)
-      }.sort($"lambda".asc).collect().foreach( result => println(s"  - P(survival|lambda=${result.lambda}) = ${result.probabilityWithConfidence.toString}"))
+                  noOfTrials, row.getAs[Long](4) )
+      }.sort($"lambda").collect().foreach( result => println(result.toString()))
 
+      val sumOfTime = results.agg(sum(("time"))).first().getAs[Long](0)
+      val totalTrials = results.agg(count(("time"))).first().getAs[Long](0)
+
+      println(s"\n$sumOfTime ticks (unit of time) processed in $totalTrials trials, averaging "+ f"${sumOfTime.doubleValue()/totalTrials}%1.1f ticks/trial\n")
       spark.stop()
 
 
     }
-
-
   }
 }
