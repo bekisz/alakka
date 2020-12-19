@@ -3,7 +3,7 @@
   "proxyUser": "szabi",
   "className": "org.alakka.galtonwatson.Experiment",
   "name": "Galton-Watson Experiment with 7x1.000.000 v1",
-  "args" : ["1000000"],
+  "args" : ["3000000"],
 
 
 
