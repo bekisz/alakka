@@ -12,5 +12,5 @@ Enjoy the experimentation.
 
 The best way to create your own experiment is to use one of these :
 
-[Galton-Watson Experiment](/src/main/scala/org/alakka/galtonwatson/README.md)
-... more to come...
+- [Galton-Watson Experiment](/src/main/scala/org/alakka/galtonwatson/README.md)
+- ... more to come...
