@@ -20,6 +20,6 @@ jobs:
     - name: Run tests
       id: run-test
       run: sbt -J-Dspark.master=local[*] "runMain org.alakka.galtonwatson.Experiment 100"
-    - name: Build Package
-      run: sbt package
+    - name: Publish to OSS Sonatype Repo
+      run: sbt publishSigned
       
