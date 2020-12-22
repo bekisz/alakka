@@ -9,15 +9,8 @@ import org.apache.spark.sql.{Dataset, SparkSession}
 
 
 
-case class TrialOutputByLambda(lambda:Double,
-                               probabilityWithConfidence:ProbabilityWithConfidence,
-                               noOfTrials:Long, sumOfTime:Long) {
-  override def toString: String =
-    s"  - P(survival|lambda=$lambda) = ${probabilityWithConfidence.toString}"
-}
-
 object Experiment  {
-  val conf:SparkConf = new SparkConf().setAppName("Galton-Watson Experiment")
+  val conf:SparkConf = new SparkConf().setAppName("Galton-Watson Simulation")
   val spark:SparkSession = SparkSession.builder.config(conf).getOrCreate()
 
   def generateAllTrialInputs(trialsMultiplier:Int =1000): Dataset[TrialInput] = {
@@ -83,7 +76,7 @@ object Experiment  {
 
       val trialInputDS = this.generateAllTrialInputs(trialsMultiplier)
 
-      println(s"Galton-Watson Simulation started with ${trialInputDS.count()} trials")
+      println(s"${spark.sparkContext.appName} started with ${trialInputDS.count()} trials")
       println("Spark version : " + spark.sparkContext.version)
       import spark.implicits._
       val trialOutputDS = trialInputDS
@@ -97,7 +90,7 @@ object Experiment  {
       val confidence = 0.99
       println(s"\nSurvival Probabilities within ${confidence*100}% confidence interval by lambdas" )
       this.groupTrialOutputsByLambda(trialOutputDS, confidence)
-        .collect().foreach( result => println(result.toString()))
+        .collect().foreach( aggregatedOutput => println(aggregatedOutput.toString()))
 
       this.showPerformanceMetrics(trialOutputDS)
       spark.stop()

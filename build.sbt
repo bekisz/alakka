@@ -1,13 +1,51 @@
 name := "alakka"
-version := "1.0"
+version := "0.1-SNAPSHOT"
 scalaVersion := "2.11.12"
 
 //lazy val akkaVersion = "2.6.10"
 lazy val akkaVersion = "2.5.21"
 lazy val sparkVersion = "2.3.2"
 
-resolvers += "Sonatype OSS Snapshots" at
-  "https://oss.sonatype.org/content/repositories/releases"
+//resolvers += "Maven Central" at
+//  "https://repo1.maven.org/maven2/"
+
+
+// ThisBuild / version      := "0.1-SNAPSHOT"
+
+credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials")
+
+ThisBuild / organization := "com.github.bekisz"
+ThisBuild / organizationName := "example"
+ThisBuild / organizationHomepage := Some(url("http://example.com/"))
+
+ThisBuild / scmInfo := Some(
+  ScmInfo(
+    url("https://github.com/bekisz/alakka"),
+    "scm:git@github.com:bekisz/alakka.git"
+  )
+)
+ThisBuild / developers := List(
+  Developer(
+    id    = "szabi",
+    name  = "Szabolcs Beki",
+    email = "szabi@apache.org",
+    url   = url("https://github.com/bekisz")
+  )
+)
+
+ThisBuild / description := "Artificial Life Framework"
+ThisBuild / licenses := List("Apache 2" -> new URL("http://www.apache.org/licenses/LICENSE-2.0.txt"))
+ThisBuild / homepage := Some(url("https://github.com/example/project"))
+
+// Remove all additional repository other than Maven Central from POM
+ThisBuild / pomIncludeRepository := { _ => false }
+ThisBuild / publishTo := {
+  val nexus = "https://oss.sonatype.org/"
+  if (isSnapshot.value) Some("snapshots" at nexus + "content/repositories/snapshots")
+  else Some("releases" at nexus + "service/local/staging/deploy/maven2")
+}
+ThisBuild / publishMavenStyle := true
+
 
 //Compile / resourceDirectory := baseDirectory.value / "config"
 //Compile / unmanagedResourceDirectories += baseDirectory.value / "config"
@@ -28,7 +66,8 @@ libraryDependencies ++= Seq(
 fork := true
 javaOptions ++= Seq(
   "-D-Dspark.master=local[*]"
-) */
+)
+
 assemblyMergeStrategy in assembly := {
   case PathList("META-INF", xs @ _*) => MergeStrategy.discard
 
@@ -40,3 +79,4 @@ assemblyMergeStrategy in assembly := {
 
   case x => MergeStrategy.first
 }
+*/

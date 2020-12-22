@@ -1,4 +1,6 @@
 {
+  "file": "hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/alakka_2.11-0.1-SNAPSHOT.jar",
+
   "file" : "hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/alakka-assembly-1.0.jar",
   "proxyUser" : "szabi",
   "className": "org.alakka.galtonwatson.Experiment",
@@ -14,8 +16,3 @@
   }
 
 }
-
-
-"org.apache.spark" %% "spark-sql" %  sparkVersion  /* %  "provided" */,
-"org.apache.spark" %% "spark-core" % sparkVersion /* %  "provided" */,
-//"org.apache.spark" %% "spark-streaming" % "2.4.7" % "provided",

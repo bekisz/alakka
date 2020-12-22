@@ -1,11 +1,9 @@
 {
-  "file": "hdfs://szabi-1.lab.eng.hortonworks.com:8020/user/szabi/alakka/alakka_2.11-1.0.jar",
+  "file" : "https://oss.sonatype.org/content/repositories/snapshots/com/github/bekisz/alakka_2.11/0.1-SNAPSHOT/alakka_2.11-0.1-SNAPSHOT.jar",
   "proxyUser": "szabi",
   "className": "org.alakka.galtonwatson.Experiment",
   "name": "Galton-Watson Experiment with 7x1.000.000 v1",
-  "args" : ["3000000"],
-
-
+  "args" : ["100000"],
 
   "conf" : {
 
