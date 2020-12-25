@@ -21,7 +21,17 @@ class Experiment(val name:String, val multiplicity:Int = 1000, val lambdaRange:I
     lambdasDS.crossJoin(multiplicityDS).as[TrialInput]
 
   }
+  def run(): Dataset[TrialOutput] = {
 
+    val trialInputDS = this.generateAllTrialInputs()
+
+    println(s"${this.spark.sparkContext.appName} started with ${trialInputDS.count()} trials")
+    println("Spark version : " + this.spark.sparkContext.version)
+    import this.spark.implicits._
+    trialInputDS
+      .map(trialInput =>
+        TrialOutput( new Trial(maxPopulation = 1000, seedNode = new Node(trialInput.lambda)).run()) )
+  }
   // -- calculate and show expected extinction time by lambda
   def showExpectedExtinctionTimesByLambda(trialOutputDS: Dataset[TrialOutput]): Unit = {
     import spark.implicits._
@@ -32,8 +42,8 @@ class Experiment(val name:String, val multiplicity:Int = 1000, val lambdaRange:I
   }
 
   // -- calculate and show expected extinction time by lambda
-  def groupTrialOutputsByLambda(trialOutputDS: Dataset[TrialOutput], confidence: Double = 0.95): Dataset[TrialOutputByLambda] = {
-
+  def groupTrialOutputsByLambda(trialOutputDS: Dataset[TrialOutput], confidence: Double = 0.98): Dataset[TrialOutputByLambda] = {
+    println(s"\nSurvival Probabilities within ${confidence*100}% confidence interval by lambdas" )
     import spark.implicits._
     val survivalProb = trialOutputDS
       .groupBy("lambda").agg(
@@ -77,26 +87,14 @@ object Experiment {
       val multiplicity = if (args.length > 0)  { args(0).toInt } else 1000
       val lambdaRange = IndexedSeq(1.0, 1.1,1.2,1.3,1.4,1.5,1.6)
 
-      val experiment= new Experiment("Galton-Watson Experiment", multiplicity, lambdaRange);
+      val experiment = new Experiment("Galton-Watson Experiment", multiplicity, lambdaRange);
 
-      val trialInputDS = experiment.generateAllTrialInputs()
-
-      println(s"${experiment.spark.sparkContext.appName} started with ${trialInputDS.count()} trials")
-      println("Spark version : " + experiment.spark.sparkContext.version)
-      import experiment.spark.implicits._
-      val trialOutputDS = trialInputDS
-        .map(trialInput =>
-          TrialOutput( new Trial(maxPopulation = 1000, seedNode = new Node(trialInput.lambda)).run()) )
-        .cache()
-
+      val trialOutputDS = experiment.run().cache()
 
       experiment.showExpectedExtinctionTimesByLambda(trialOutputDS)
 
-      val confidence = 0.99
-      println(s"\nSurvival Probabilities within ${confidence*100}% confidence interval by lambdas" )
-      experiment.groupTrialOutputsByLambda(trialOutputDS, confidence)
+      experiment.groupTrialOutputsByLambda(trialOutputDS, confidence = 0.99)
         .collect().foreach( aggregatedOutput => println(aggregatedOutput.toString()))
-
       experiment.showPerformanceMetrics(trialOutputDS)
       experiment.spark.stop()
 
