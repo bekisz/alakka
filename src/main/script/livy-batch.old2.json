@@ -2,8 +2,8 @@
   "file" : "https://oss.sonatype.org/content/repositories/snapshots/com/github/bekisz/alakka_2.11/0.1-SNAPSHOT/alakka_2.11-0.1-SNAPSHOT.jar",
   "proxyUser": "szabi",
   "className": "org.alakka.galtonwatson.Experiment",
-  "name": "Galton-Watson Experiment with 7x1.000.000",
-  "args" : ["1000000"],
+  "name": "Galton-Watson Experiment with 7x1.000.000 v1",
+  "args" : ["100000"],
 
   "conf" : {
 

@@ -28,3 +28,10 @@ sbt -J-Dspark.master=local[*] run
 Assembly -> Upload Jar -> Submit :
 sbt assembly && ./src/main/script/upload-submit.sh
 
+spark-submit --class org.alakka.galtonwatson.Experiment --packages org.apache.logging.log4j:log4j-api-scala_2.11:11.0,com.github.bekisz:alakka_2.11:0.1-SNAPSHOT  --master yarn --name "Galton-Watson Experiment" --deploy-mode client --repositories https://oss.sonatype.org/content/repositories/snapshots/ --executor-memory 3G --num-executors 4  --executor-cores 15 neverexisted.jar 1000000 > alakka.stdout
+
+# Publish and run on HDP
+sbt publishSigned && src/main/script/submit.sh
+
+# yarn application -kill
+yarn application -kill
