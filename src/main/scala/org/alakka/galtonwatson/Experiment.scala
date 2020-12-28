@@ -3,38 +3,34 @@ package org.alakka.galtonwatson
 import org.alakka.utils.Time.time
 import org.apache.spark.sql.{Dataset, SparkSession}
 
-
 /**
  * Implementation of the Galton-Watson experiment by various lambda values and Monte-Carlo trials
  *
  * @param name The name of the experiment that is got propagated to SparkSession, in case that one is newly created
  * @param monteCarloMultiplicity The number of trials executed for each lambda in the lambdaRange Seq
- * @param lambdaRange The range of lambda values for the trials that are executed. Each value will executed by monteCarloMultiplicity time  s
+ * @param trialInputRange The range of variables for the trials that are executed. Each value will executed by monteCarloMultiplicity times
  * @param enableInTrialOutputData collection of TrialOutput data  happens after every tick, not only at the end of Trial
  *                                Setting it false gives you some performance boost
  */
 class Experiment(val name:String,
                  val monteCarloMultiplicity:Int = 1000,
-                 val lambdaRange:IndexedSeq[Double]= Vector(1.0),
+                 //val lambdas:Dimension[Lambda] = Dimension[Lambda](Lambda(1.2)),
+                 val trialInputRange: TrialInputRange,
                  //val maxPopulationRange:IndexedSeq[Long] = Vector(1000L),
                  val enableInTrialOutputData:Boolean = true
 
                 ) {
-/*
-  def this(val name:String,
-  val monteCarloMultiplicity:Int = 1000
-  ) = {
 
-  }*/
 
   val spark: SparkSession = SparkSession.builder.appName(name).getOrCreate()
 
   def generateAllTrialInputs(): Dataset[TrialInput] = {
 
     import spark.implicits._
-    val lambdasDS = this.lambdaRange.map(t => Lambda(t)).toDS()
+    val lambdasDS = this.trialInputRange.lambdas.elements.toDS()
+    val maxPopulationDS = this.trialInputRange.maxPopulations.elements.toDS()
     val multiplicityDS = (for(i <- 1 to this.monteCarloMultiplicity) yield MultiplicityId(i) ).toDS()
-    lambdasDS.crossJoin(multiplicityDS).as[TrialInput]
+    lambdasDS.crossJoin(multiplicityDS).crossJoin(maxPopulationDS).as[TrialInput]
 
   }
   def run(): Dataset[TrialOutput] = {
@@ -63,12 +59,6 @@ class Experiment(val name:String,
     trialOutputDS
   }
 
-
-
-
-
-
-
 }
 object Experiment {
 
@@ -76,9 +66,12 @@ object Experiment {
 
     time {
       val monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 1000
-      val lambdaRange = Vector(1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6)
-
-      val experiment = new Experiment("Galton-Watson Experiment", monteCarloMultiplicity, lambdaRange)
+      import DimensionImplicits._
+      val trialInputRange = new TrialInputRange(
+        lambdas = Vector(1.0,1.2,1.4,1.6,1.8,2.0),
+        maxPopulations = MaxPopulation(1000)
+      )
+      val experiment = new Experiment("Galton-Watson Experiment", monteCarloMultiplicity, trialInputRange)
 
       val trialOutputDS = experiment.run().cache()
 
