@@ -1,7 +1,6 @@
 package org.alakka.galtonwatson
 
 import org.alakka.utils.Time.time
-import org.apache.spark.sql.functions.{avg, format_number}
 import org.apache.spark.sql.{Dataset, SparkSession}
 
 
@@ -10,18 +9,23 @@ import org.apache.spark.sql.{Dataset, SparkSession}
  *
  * @param name The name of the experiment that is got propagated to SparkSession, in case that one is newly created
  * @param monteCarloMultiplicity The number of trials executed for each lambda in the lambdaRange Seq
- * @param lambdaRange The range of lambda values for the trials that are executed. Each value will exucted by monteCarloMultiplicity time  s
+ * @param lambdaRange The range of lambda values for the trials that are executed. Each value will executed by monteCarloMultiplicity time  s
  * @param enableInTrialOutputData collection of TrialOutput data  happens after every tick, not only at the end of Trial
  *                                Setting it false gives you some performance boost
  */
 class Experiment(val name:String,
                  val monteCarloMultiplicity:Int = 1000,
                  val lambdaRange:IndexedSeq[Double]= Vector(1.0),
+                 //val maxPopulationRange:IndexedSeq[Long] = Vector(1000L),
                  val enableInTrialOutputData:Boolean = true
 
                 ) {
+/*
+  def this(val name:String,
+  val monteCarloMultiplicity:Int = 1000
+  ) = {
 
-
+  }*/
 
   val spark: SparkSession = SparkSession.builder.appName(name).getOrCreate()
 
@@ -88,7 +92,8 @@ object Experiment {
       analyzer.expectedExtinctionTimesByLambda().show()
       val ticks = analyzer.ticks()
       val trials = analyzer.trials()
-      println(s"\n${ticks} ticks (unit of time) processed in ${trials} trials, averaging " + f"${ticks.toDouble / trials}%1.1f ticks/trial\n")
+      println(s"\n$ticks ticks (smallest unit of time) processed in $trials trials, averaging "
+        + f"${ticks.toDouble / trials}%1.1f ticks/trial\n")
 
       experiment.spark.stop()
 
