@@ -12,9 +12,3 @@ object TrialOutput {
   }
 }
 
-case class TrialOutputByLambda(lambda:Double,
-                               probabilityWithConfidence:ProbabilityWithConfidence,
-                               noOfTrials:Long, sumOfTime:Long) {
-  override def toString: String =
-    s"  - P(survival|lambda=$lambda) = ${probabilityWithConfidence.toString}"
-}

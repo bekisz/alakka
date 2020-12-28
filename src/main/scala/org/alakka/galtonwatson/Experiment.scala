@@ -1,24 +1,35 @@
 package org.alakka.galtonwatson
 
 import org.alakka.utils.Time.time
-import org.alakka.utils.{ProbabilityWithConfidence, Statistics}
-import org.apache.spark.SparkConf
-import org.apache.spark.sql.functions._
+import org.apache.spark.sql.functions.{avg, format_number}
 import org.apache.spark.sql.{Dataset, SparkSession}
 
 
+/**
+ * Implementation of the Galton-Watson experiment by various lambda values and Monte-Carlo trials
+ *
+ * @param name The name of the experiment that is got propagated to SparkSession, in case that one is newly created
+ * @param monteCarloMultiplicity The number of trials executed for each lambda in the lambdaRange Seq
+ * @param lambdaRange The range of lambda values for the trials that are executed. Each value will exucted by monteCarloMultiplicity time  s
+ * @param enableInTrialOutputData collection of TrialOutput data  happens after every tick, not only at the end of Trial
+ *                                Setting it false gives you some performance boost
+ */
+class Experiment(val name:String,
+                 val monteCarloMultiplicity:Int = 1000,
+                 val lambdaRange:IndexedSeq[Double]= Vector(1.0),
+                 val enableInTrialOutputData:Boolean = true
 
-class Experiment(val name:String, val multiplicity:Int = 1000, val lambdaRange:IndexedSeq[Double]= Vector(1.0)) {
+                ) {
 
-  val conf: SparkConf = new SparkConf().setAppName(name)
-  val spark: SparkSession = SparkSession.builder.config(conf).getOrCreate()
 
+
+  val spark: SparkSession = SparkSession.builder.appName(name).getOrCreate()
 
   def generateAllTrialInputs(): Dataset[TrialInput] = {
 
     import spark.implicits._
     val lambdasDS = this.lambdaRange.map(t => Lambda(t)).toDS()
-    val multiplicityDS = (for(i <- 1 to this.multiplicity) yield MultiplicityId(i) ).toDS()
+    val multiplicityDS = (for(i <- 1 to this.monteCarloMultiplicity) yield MultiplicityId(i) ).toDS()
     lambdasDS.crossJoin(multiplicityDS).as[TrialInput]
 
   }
@@ -28,108 +39,57 @@ class Experiment(val name:String, val multiplicity:Int = 1000, val lambdaRange:I
 
     println(s"${this.spark.sparkContext.appName} started with ${trialInputDS.count()} trials")
     println("Spark version : " + this.spark.sparkContext.version)
+
     import spark.implicits._
-    trialInputDS
-      //.map(trialInput =>
-      //  TrialOutput( new Trial(maxPopulation = 1000, seedNode = new Node(trialInput.lambda)).run()) )
-       .flatMap(trialInput => {
-          val trial = new Trial(maxPopulation = 1000, seedNode = new Node(trialInput.lambda))
+    val trialOutputDS:Dataset[TrialOutput] = if (this.enableInTrialOutputData) {
+      trialInputDS.flatMap(trialInput => {
+          val trial = new Trial(1000, seedNode = new Node(trialInput.lambda))
           var outputList = Seq[TrialOutput]() :+ TrialOutput(trial)
-          while ( !trial.isFinished)  {
-             trial.tick()
+          while (!trial.isFinished) {
+            trial.tick()
             outputList = outputList :+ TrialOutput(trial)
           }
-         outputList
+          outputList
 
-        }  )
-
+        })
+    } else {
+      trialInputDS.map(trialInput =>
+        TrialOutput( new Trial(1000, seedNode = new Node(trialInput.lambda)).run()) )
+    }
+    trialOutputDS
   }
 
-  def showAveragePopulationByTime(trialOutputDS: Dataset[TrialOutput], maxTime:Int =20 ): Unit = {
 
-    import spark.implicits._
 
-    trialOutputDS.where($"time" <= maxTime ).flatMap({ trialOutput =>
-      var listOutput = trialOutput :: List[TrialOutput]()
-      if (trialOutput.isFinished) {
-        listOutput = listOutput :::
-          (trialOutput.time +1 to maxTime).map( newTime => trialOutput.copy(time = newTime)).toList
-      }
-      listOutput
-    })
-      .groupBy("time").agg(
-      format_number(avg($"nrOfSeedNodes"), 1).as("population"))
-      .orderBy("time").show(maxTime)
-  }
 
-  // -- calculate and show expected extinction time by lambda
-  def showExpectedExtinctionTimesByLambda(trialOutputDS: Dataset[TrialOutput]): Unit = {
-    import spark.implicits._
-    trialOutputDS.where($"isSeedDominant" === false)
-      .groupBy("lambda").agg(
-      format_number(avg($"time"), 1).as("extinctionTime"))
-      .orderBy("lambda").show()
-  }
 
-  // -- calculate and show expected extinction time by lambda
-  def groupTrialOutputsByLambda(trialOutputDS: Dataset[TrialOutput], confidence: Double = 0.98): Dataset[TrialOutputByLambda] = {
-    println(s"\nSurvival Probabilities within ${confidence*100}% confidence interval by lambdas" )
-    import spark.implicits._
-    val survivalProb = trialOutputDS
-      .groupBy("lambda").agg(
-      avg($"isSeedDominant".cast("Integer")).as("survivalProbability"),
-      stddev($"isSeedDominant".cast("Integer")).as("stdDevProbability"),
-      count($"isSeedDominant").as("noOfTrials"),
-      sum($"time").as("sumOfTime"))
 
-    val survivalProbConf: Dataset[TrialOutputByLambda] = survivalProb.map {
-      row =>
-        val lambda = row.getAs[Double](0)
-        val survivalProbability = row.getAs[Double](1)
-        val stdDevProbability = row.getAs[Double](2)
-        val noOfTrials = row.getAs[Long](3)
 
-        val (confidenceIntervalLow, confidenceIntervalHigh)
-        = Statistics.confidenceInterval(noOfTrials, survivalProbability, stdDevProbability, confidence)
-
-        TrialOutputByLambda(lambda, ProbabilityWithConfidence(survivalProbability, confidence, confidenceIntervalLow, confidenceIntervalHigh),
-          noOfTrials, row.getAs[Long](4))
-    }.sort($"lambda")
-
-    survivalProbConf
-  }
-
-  // Something like this to stdout :
-  // 8888 ticks (unit of time) processed in 700 trials, averaging 12.7 ticks/trial
-
-  def showPerformanceMetrics(trialOutputDS: Dataset[TrialOutput]): Unit = {
-    val sumOfTime = trialOutputDS.agg(sum("time")).first().getAs[Long](0)
-    val totalTrials = trialOutputDS.agg(count("time")).first().getAs[Long](0)
-
-    println(s"\n$sumOfTime ticks (unit of time) processed in $totalTrials trials, averaging " + f"${sumOfTime.doubleValue() / totalTrials}%1.1f ticks/trial\n")
-  }
 }
 object Experiment {
 
   def main(args : Array[String]): Unit = {
 
     time {
-      val multiplicity = if (args.length > 0)  { args(0).toInt } else 1000
+      val monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 1000
       val lambdaRange = Vector(1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6)
-      //val lambdaRange2 = 1.0 to 1.6 by 0.1
-      val experiment = new Experiment("Galton-Watson Experiment", multiplicity, lambdaRange)
+
+      val experiment = new Experiment("Galton-Watson Experiment", monteCarloMultiplicity, lambdaRange)
 
       val trialOutputDS = experiment.run().cache()
-      import experiment.spark.implicits._
-      experiment.showAveragePopulationByTime(trialOutputDS.filter(_.lambda==1.6),100)
 
-      val finishedTrialOutputDS = trialOutputDS.filter(trialOutput => trialOutput.isFinished).cache()
+      val analyzer = new TrialOutputAnalyzer(trialOutputDS)
 
-      experiment.showExpectedExtinctionTimesByLambda(finishedTrialOutputDS)
-
-      experiment.groupTrialOutputsByLambda(finishedTrialOutputDS, confidence = 0.99)
+      analyzer.survivalProbabilityByLambda(confidence = 0.99)
         .collect().foreach( aggregatedOutput => println(aggregatedOutput.toString()))
-      experiment.showPerformanceMetrics(finishedTrialOutputDS)
+      analyzer.averagePopulationByLambdaAndTime(10).show(100)
+
+
+      analyzer.expectedExtinctionTimesByLambda().show()
+      val ticks = analyzer.ticks()
+      val trials = analyzer.trials()
+      println(s"\n${ticks} ticks (unit of time) processed in ${trials} trials, averaging " + f"${ticks.toDouble / trials}%1.1f ticks/trial\n")
+
       experiment.spark.stop()
 
 
