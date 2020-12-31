@@ -39,9 +39,9 @@ object Time {
   }
 
   def time[R](block: => R): R = {
-    val t0 = System.currentTimeMillis()
+    val t0 = java.lang.System.currentTimeMillis()
     val result = block // call-by-name
-    val t1 = System.currentTimeMillis()
+    val t1 = java.lang.System.currentTimeMillis()
     print("Elapsed time: " + durationFromMillisToHumanReadable(t1 - t0))
 
     result

@@ -76,11 +76,20 @@ class TrialOutputAnalyzer( val trialOutputDS:Dataset[TrialOutput]) {
       .orderBy("lambda")
   }
 
+  // Something like this to stdout :
+  // 8888 ticks (unit of time) processed in 700 trials, averaging 12.7 ticks/trial
+
+  def showPerformanceMetrics(trialOutputDS: Dataset[TrialOutput]): Unit = {
+    val sumOfTime = trialOutputDS.agg(sum("time")).first().getAs[Long](0)
+    val totalTrials = trialOutputDS.agg(count("time")).first().getAs[Long](0)
+
+  }
   def ticks() : Long = {
     trialOutputDS.filter(_.isFinished).select(sum("time")).first().getAs[Long](0)
   }
   def trials() : Long = {
     trialOutputDS.filter(_.isFinished).count()
   }
+
 }
 

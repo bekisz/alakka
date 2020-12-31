@@ -11,7 +11,7 @@ object Experiment {
 
 class Experiment(trials:Int) {
 /*
-  class MyTrial(override val param1:Int, ) extends Trial {
+  class MyTrial(override val param1:Int, ) extends GwTrial {
     override def postInit(): Unit = {
       super.postInit()
     }
@@ -23,7 +23,7 @@ class Experiment(trials:Int) {
     apply()
   }
 
-  object MyTrial extends Trial {
+  object MyTrial extends GwTrial {
     //def initContants(myTrial: MyTrial): Unit = {
      //
     //}
