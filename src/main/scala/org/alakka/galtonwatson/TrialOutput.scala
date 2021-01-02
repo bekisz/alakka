@@ -11,7 +11,6 @@ case class TrialOutput(time: Long,
 object TrialOutput {
   def apply(trial:GwTrial):TrialOutput =
     TrialOutput(
-      //trial.gwTrialInputParameters,
       trial.time(),
       trial.isSeedDominant,
       trial.seedNode.lambdaForPoisson,

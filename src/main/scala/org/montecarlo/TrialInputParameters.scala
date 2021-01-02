@@ -1,7 +1,10 @@
 package org.montecarlo
 
-abstract class TrialInputParameters {
-  val trialUniqueId   : String
+trait TrialInputParameters {
+  def trialUniqueId : String
+  //def dataCollectionStrategy : ComprehensiveDataCollection
+  def dataCollectionCondition :Trial => Boolean
+  def buildTrial:TrialInputParameters => Trial
   def createPermutations(): IndexedSeq[TrialInputParameters]
 
 }

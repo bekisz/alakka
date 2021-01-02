@@ -1,13 +1,12 @@
 package org.montecarlo
 
-import scala.language.implicitConversions
 
 
 /**
  * Parameter specifies all possible values of an input parameter.
  * If it has only one element (multiplicity=1), then this parameter acts a constant for the entire experiment
  * Multiple parameter elements triggers the multiplication of trial runs.
- * Example : If the experiment otherwise was set run 1000 times, but this parameter has 5 elements then
+ * Example : If the experiment was set run 1000 times, while this parameter has 5 elements then
  * the Monte Carlo Engine triggers not 1000 but 5x1000 runs with all 5 parameters.
  */
 case class Parameter[T](elements:IndexedSeq[T]) {

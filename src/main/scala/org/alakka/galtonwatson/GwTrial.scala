@@ -14,7 +14,7 @@ extends Trial with  Serializable
   var livingNodes:immutable.List[Node]= seedNode :: immutable.List[Node]()
 
   private var _time = 0L
-  def time(): Long = _time
+  override def time(): Long = _time
 
   private var _isSeedDominant = false
 
@@ -25,7 +25,7 @@ extends Trial with  Serializable
   def isFinished:Boolean = {
     this.livingNodes.isEmpty || this.isSeedDominant
   }
-  def tick() : GwTrial = {
+  override def tick() : GwTrial = {
     var nextGenNodes = List[Node]()
     for(node <- livingNodes) {
       val children = node.createChildren()
