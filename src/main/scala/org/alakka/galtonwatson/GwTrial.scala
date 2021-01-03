@@ -7,14 +7,14 @@ import scala.collection.immutable
 
 
 
-class GwTrial(var trialUniqueId: String, val maxPopulation:Long= 100, val seedNode:Node = new Node(lambdaForPoisson = 1.0))
+class GwTrial(var trialUniqueId: String, val maxPopulation:Long= 100, val seedNode:GwNode = new GwNode(lambdaForPoisson = 1.0))
 extends Trial with  Serializable
 {
 
-  var livingNodes:immutable.List[Node]= seedNode :: immutable.List[Node]()
+  var livingNodes:immutable.List[GwNode]= seedNode :: immutable.List[GwNode]()
 
-  private var _time = 0L
-  override def time(): Long = _time
+  private var _turn = 0L
+  override def turn(): Long = _turn
 
   private var _isSeedDominant = false
 
@@ -25,8 +25,8 @@ extends Trial with  Serializable
   def isFinished:Boolean = {
     this.livingNodes.isEmpty || this.isSeedDominant
   }
-  override def tick() : GwTrial = {
-    var nextGenNodes = List[Node]()
+  override def nextTurn() : GwTrial = {
+    var nextGenNodes = List[GwNode]()
     for(node <- livingNodes) {
       val children = node.createChildren()
       if (children.size + nextGenNodes.size < maxPopulation)
@@ -35,12 +35,12 @@ extends Trial with  Serializable
         this._isSeedDominant = true
     }
     this.livingNodes = nextGenNodes
-    _time +=1
+    _turn +=1
     this
   }
   def run() :GwTrial = {
     while(!this.isFinished ) {
-      this.tick()
+      this.nextTurn()
     }
     this
   }

@@ -19,7 +19,7 @@ Clone [Alakka repository](https://github.com/bekisz/alakka) from GitHub
  
  In the root of the repository run :
 
-> sbt -J-Dspark.master=local[*] "runMain org.alakka.galtonwatson.Experiment 100" 
+> sbt -J-Dspark.master=local[*] "runMain org.montecarlo.Experiment 100" 
 
 The value `100` sepcifies how many trials per each lambda (i.e all possible distinct input to trials) the experiment should make. The more this number, the longer the experiment lasts, but yielding more precise values for the probability of survival. 
 

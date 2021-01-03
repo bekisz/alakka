@@ -29,7 +29,7 @@ object Statistics {
 
     val alpha = 1 - confidence
 
-    /* Student's distribution could be used all the time because it converges
+    /* Student's distribution could be used all the turn because it converges
      * towards the normal distribution as n grows.
      */
     if (noOfSamples < 30) {
