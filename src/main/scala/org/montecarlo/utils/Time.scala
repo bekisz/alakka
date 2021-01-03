@@ -1,4 +1,4 @@
-package org.alakka.utils;
+package org.montecarlo.utils;
 
 
 object Time {
@@ -42,7 +42,7 @@ object Time {
     val t0 = java.lang.System.currentTimeMillis()
     val result = block // call-by-name
     val t1 = java.lang.System.currentTimeMillis()
-    print("Elapsed time: " + durationFromMillisToHumanReadable(t1 - t0))
+    print("Elapsed turn: " + durationFromMillisToHumanReadable(t1 - t0))
 
     result
   }

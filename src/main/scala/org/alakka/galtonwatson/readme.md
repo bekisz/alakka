@@ -19,7 +19,7 @@ Clone [Alakka repository](https://github.com/bekisz/alakka) from GitHub
  
  In the root of the repository run :
 
-> sbt -J-Dspark.master=local[*] "runMain org.alakka.galtonwatson.Experiment 100" 
+> sbt -J-Dspark.master=local[*] "runMain org.montecarlo.Experiment 100" 
 
 The value `100` sepcifies how many trials per each lambda (i.e all possible distinct input to trials) the experiment should make. The more this number, the longer the experiment lasts, but yielding more precise values for the probability of survival. 
 
@@ -54,6 +54,6 @@ TODO
         - *.__Node__ 
   - *.__TrialOuputProcessor__
     - org.apache.__spark__ 
-    - org.alakka.utils
+    - org.montecarlo.utils
       
 Interpretation : The higher level entities (packages/classes/files) can see the lower level entities but not the other way around. Neither peers are dependent on each other. For example, __Trial__ should reference neither  __TrialInput__ nor __TrialOutput__, nor the __Dimensions__. __Trial__ is independent of all other entities except __Node__.

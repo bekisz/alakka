@@ -1,4 +1,4 @@
-package org.alakka.utils
+package org.montecarlo.utils
 
 case class ProbabilityWithConfidence(probability: Double, confidence: Double, low: Double, high: Double) {
   override def toString: String = {
