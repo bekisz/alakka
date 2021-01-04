@@ -52,7 +52,7 @@ TODO
   - *.__TrialOutput__
     - *.__Trial__
         - *.__Node__ 
-  - *.__TrialOuputProcessor__
+  - *.__TrialOutputProcessor__
     - org.apache.__spark__ 
     - org.montecarlo.utils
       
