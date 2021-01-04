@@ -7,10 +7,9 @@ import scala.collection.immutable
 
 
 
-class GwTrial(var trialUniqueId: String, val maxPopulation:Long= 100, val seedNode:GwNode = new GwNode(lambdaForPoisson = 1.0))
+class GwTrial( val maxPopulation:Long= 100, val seedNode:GwNode = new GwNode(lambdaForPoisson = 1.0))
 extends Trial with  Serializable
 {
-
   var livingNodes:immutable.List[GwNode]= seedNode :: immutable.List[GwNode]()
 
   private var _turn = 0L
