@@ -1,16 +1,12 @@
 package org.alakka.galtonwatson
 import org.montecarlo.Parameter.implicitConversions._
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Experiment, Input, Parameter, ParameterBase}
+import org.montecarlo.{Experiment, Input, Parameter}
 
 case class GwInput(
                     lambda:Parameter[Double] = Vector(1.2, 1.5, 2.0),
                     maxPopulation:Parameter[Long] = Vector(1000L, 3000L)
-                  ) extends Input[GwInput]  {
-  override def inputBuilder(params:List[ParameterBase]): GwInput = params match {
-    case (lambda: Parameter[Double] ) :: (maxPopulation: Parameter[Long] ) :: Nil => GwInput (lambda, maxPopulation)
-  }
-}
+                  ) extends Input
 
 case class GwOutput(turn: Long,
                     isSeedDominant: Boolean,
@@ -36,13 +32,12 @@ object GwExperiment {
 
       val experiment = new Experiment[GwInput,GwTrial,GwOutput](
         name = "Galton-Watson Experiment",
-        inputParams = GwInput(),
-        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 2,
+        input = GwInput(),
+        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 100,
         trialBuilderFunction = trialInput => new GwTrial( trialInput.maxPopulation,
           seedNode = new GwNode(trialInput.lambda )),
         outputCollectorBuilderFunction = trial => GwOutput(trial),
         outputCollectorNeededFunction = trial => trial.turn() % 2 ==0 || trial.isFinished
-
       )
 
 
@@ -58,10 +53,10 @@ object GwExperiment {
 
 
       analyzer.expectedExtinctionTimesByLambda().show()
-      val ticks = analyzer.turns()
+      val turns = analyzer.turns()
       val trials = analyzer.trials()
-      println(s"\n$ticks turns processed in $trials trials, averaging "
-        + f"${ticks.toDouble / trials}%1.1f turns/t\n")
+      println(s"\n$turns turns processed in $trials trials, averaging "
+        + f"${turns.toDouble / trials}%1.1f turns per trial\n")
 
       experiment.spark.stop()
 
