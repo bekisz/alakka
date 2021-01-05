@@ -44,7 +44,7 @@ spark-shell --repositories https://oss.sonatype.org/content/repositories/snapsho
 
 :paste
 
-import org.alakka.galtonwatson._
+import org.montecarlo.examples.galtonwatson._
 import org.apache.spark.sql.SparkSession
 val multiplicity = 100
 val lambdaRange = Vector(1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6)

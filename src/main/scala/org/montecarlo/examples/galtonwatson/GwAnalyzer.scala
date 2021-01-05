@@ -1,4 +1,4 @@
-package org.alakka.galtonwatson
+package org.montecarlo.examples.galtonwatson
 
 import org.montecarlo.utils.{ProbabilityWithConfidence, Statistics}
 import org.apache.spark.sql.functions.{avg, count, stddev, sum}
@@ -11,10 +11,18 @@ case class TrialOutputByLambda(lambda:Double,
     s"  - P(survival|lambda=$lambda) = ${probabilityWithConfidence.toString}"
 }
 
-class GwTrialOutputAnalyzer(val gwOutputDS:Dataset[GwOutput]) {
+/**
+ * A collection of useful SQL operations on the experiment output Dataset
+ *
+ * @param gwOutputDS The output Dataset of the Galton-Watson experiment
+ */
+class GwAnalyzer(val gwOutputDS:Dataset[GwOutput]) {
   val spark: SparkSession = SparkSession.builder.getOrCreate()
 
-  // -- calculate and show expected extinction turn by lambda
+  /**
+   * Calculate the survival probabilities of seedNodes within the given confidence interval grouped by
+   * lambda (average number of descendant, the lambda in a Poisson distribution)
+   */
   def survivalProbabilityByLambda(confidence: Double = 0.98): Dataset[TrialOutputByLambda] = {
     println(s"\nSurvival Probabilities within ${confidence*100}% confidence interval by lambdas" )
     import spark.implicits._
@@ -43,9 +51,9 @@ class GwTrialOutputAnalyzer(val gwOutputDS:Dataset[GwOutput]) {
   }
 
   /**
-   * Calculates the average population by Lambda and Turn
-   * @param maxTurn
-   * @return
+   * Calculates the average population by Lambda and Turn. It only makes sense if each turn is captured
+   * @param maxTurn the table will collect data up until this turn number
+   * @return DataFrame with the number of seed nodes, grouped by lambda and turn
    */
   def averagePopulationByLambdaAndTime(maxTurn:Int =100 ): Dataset[Row] = {
 
@@ -76,17 +84,16 @@ class GwTrialOutputAnalyzer(val gwOutputDS:Dataset[GwOutput]) {
       .orderBy("lambda")
   }
 
-  // Something like this to stdout :
-  // 8888 turns (unit of turn) processed in 700 trials, averaging 12.7 turns/t
-
-  def showPerformanceMetrics(trialOutputDS: Dataset[GwOutput]): Unit = {
-    val sumOfTime = trialOutputDS.agg(sum("turn")).first().getAs[Long](0)
-    val totalTrials = trialOutputDS.agg(count("turn")).first().getAs[Long](0)
-
-  }
+  /**
+   * @return # of turns summed in the experiment
+   */
   def turns() : Long = {
     gwOutputDS.filter(_.isFinished).select(sum("turn")).first().getAs[Long](0)
   }
+
+  /**
+   * @return # of trial executed
+   */
   def trials() : Long = {
     gwOutputDS.filter(_.isFinished).count()
   }
