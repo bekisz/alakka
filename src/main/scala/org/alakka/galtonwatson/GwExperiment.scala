@@ -1,12 +1,16 @@
 package org.alakka.galtonwatson
 import org.montecarlo.Parameter.implicitConversions._
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Experiment, Parameter}
+import org.montecarlo.{Experiment, Input, Parameter, ParameterBase}
 
 case class GwInput(
                     lambda:Parameter[Double] = Vector(1.2, 1.5, 2.0),
                     maxPopulation:Parameter[Long] = Vector(1000L, 3000L)
-                  )
+                  ) extends Input[GwInput]  {
+  override def inputBuilder(params:List[ParameterBase]): GwInput = params match {
+    case (lambda: Parameter[Double] ) :: (maxPopulation: Parameter[Long] ) :: Nil => GwInput (lambda, maxPopulation)
+  }
+}
 
 case class GwOutput(turn: Long,
                     isSeedDominant: Boolean,
@@ -34,13 +38,10 @@ object GwExperiment {
         name = "Galton-Watson Experiment",
         inputParams = GwInput(),
         monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 2,
-        inputBuilderFunction = {
-          case (lambda: Parameter[Double]) :: (maxPopulation: Parameter[Long]) :: Nil => GwInput(lambda, maxPopulation)
-        },
         trialBuilderFunction = trialInput => new GwTrial( trialInput.maxPopulation,
           seedNode = new GwNode(trialInput.lambda )),
         outputCollectorBuilderFunction = trial => GwOutput(trial),
-        outputCollectorNeededFunction = trial => trial.turn() % 100 ==0 || trial.isFinished
+        outputCollectorNeededFunction = trial => trial.turn() % 2 ==0 || trial.isFinished
 
       )
 

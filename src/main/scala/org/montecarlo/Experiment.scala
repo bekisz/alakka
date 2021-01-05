@@ -13,45 +13,27 @@ import scala.reflect.ClassTag
  * @param inputParams The range of variables for the trials that are executed. Each value will executed by monteCarloMultiplicity times
  *
  */
-class Experiment[InputType:ClassTag,
+class Experiment[InputType<:Input[InputType]:ClassTag,
   TrialType<:Trial:ClassTag, OutputType:ClassTag](val name:String,
                                          val inputParams: InputType,
                                          val monteCarloMultiplicity:Int,
-                                         val inputBuilderFunction : List[ParameterBase] => InputType,
                                          val trialBuilderFunction : InputType => TrialType,
                                          val outputCollectorBuilderFunction : TrialType => OutputType,
                                          val outputCollectorNeededFunction  : TrialType => Boolean
-                                        // val inputRDDtoDF:  RDD[(String, InputType)] => DataFrame
-
-
-) extends Serializable {
+) extends Serializable with HasMultiplicity {
 
 
   val spark: SparkSession = SparkSession.builder.appName(name).getOrCreate()
-
-
-  private[this] def createInputPermutations():Seq[InputType]  = {
-
-    val allParams = this.inputParams.getClass.getDeclaredFields
-      .map(paramField => {
-        paramField.setAccessible(true)
-        paramField.get(this.inputParams)
-      })
-      .map {
-        case paramBase: ParameterBase => paramBase.explode.toList
-        case _ => List.empty[ParameterBase]
-      }
-      .filter(_.nonEmpty).toList
-    org.montecarlo.utils.Collections.cartesianProduct(allParams:_*)
-      .map(params => this.inputBuilderFunction(params))
-
-  }
+  override def multiplicity(): Int = this.inputParams.multiplicity() * this.monteCarloMultiplicity
 
   def run(): RDD[OutputType] = {
-    val inputPermutationsRDD = spark.sparkContext.parallelize(this.createInputPermutations())
+    val inputPermutationsRDD = spark.sparkContext.parallelize(this.inputParams.createInputPermutations())
 
-    print(s"Running ${this.spark.sparkContext.appName} with ${inputPermutationsRDD.count()} x")
-    println(s" ${this.monteCarloMultiplicity} trials on Spark " + this.spark.sparkContext.version)
+    print(s"Running ${this.spark.sparkContext.appName} with (")
+    print(s"${this.inputParams.fetchParameters().map(_.multiplicity()).mkString("x")}) x")
+    print(s" ${this.monteCarloMultiplicity} = ${this.multiplicity()}")
+
+    println(s" trials on Spark " + this.spark.sparkContext.version)
     val outputRDD:RDD[OutputType] = inputPermutationsRDD.flatMap( in => List.fill(this.monteCarloMultiplicity)(in))
     .flatMap (input => {
         val trial = this.trialBuilderFunction(input)
