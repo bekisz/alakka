@@ -1,16 +1,13 @@
 name := "alakka"
 version := "0.1-SNAPSHOT"
 scalaVersion := "2.11.12"
+scalacOptions += "-target:jvm-1.8"
 
-//lazy val akkaVersion = "2.6.10"
+
+
 lazy val akkaVersion = "2.5.21"
 lazy val sparkVersion = "2.3.2"
 
-//resolvers += "Maven Central" at
-//  "https://repo1.maven.org/maven2/"
-
-
-// ThisBuild / version      := "0.1-SNAPSHOT"
 
 credentials += Credentials(Path.userHome / ".sbt" / "sonatype_credentials")
 
@@ -54,10 +51,11 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion,
   //"ch.qos.logback" % "logback-classic" % "1.2.3",
   //"com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test % "provided",
-  //"org.scalatest" %% "scalatest" % "3.1.0" % Test,
-   "org.apache.spark" %% "spark-sql" %  sparkVersion,
-   "org.apache.spark" %% "spark-core" % sparkVersion,
+   "org.scalatest" %% "scalatest-funsuite" % "3.2.3" % Test,
+  "org.scalatest" %% "scalatest" % "3.2.3" % Test,
 
+  "org.apache.spark" %% "spark-sql" %  sparkVersion,
+   "org.apache.spark" %% "spark-core" % sparkVersion,
   "org.apache.logging.log4j" %% "log4j-api-scala" % "11.0"
 
 )

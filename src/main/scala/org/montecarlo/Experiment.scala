@@ -1,5 +1,6 @@
 package org.montecarlo
 
+import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 
@@ -34,11 +35,13 @@ class Experiment[InputType<:Input:ClassTag,
                                                   val monteCarloMultiplicity:Int,
                                                   val trialBuilderFunction : InputType => TrialType,
                                                   val outputCollectorBuilderFunction : TrialType => OutputType,
-                                                  val outputCollectorNeededFunction  : TrialType => Boolean
+                                                  val outputCollectorNeededFunction  : TrialType => Boolean,
+                                                  val sparkConf: SparkConf = new SparkConf()
+
 ) extends Serializable with HasMultiplicity {
 
 
-  val spark: SparkSession = SparkSession.builder.appName(name).getOrCreate()
+  val spark: SparkSession = SparkSession.builder.config(sparkConf).appName(name).getOrCreate()
 
   /**
    * @return the number of Trial runs = input multiplicity x Monte-Carlo multiplicity
