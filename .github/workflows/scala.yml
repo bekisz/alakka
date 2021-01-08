@@ -20,6 +20,4 @@ jobs:
     - name: Run tests
       id: run-test
       run: sbt test
-    - name: Publish to OSS Sonatype Repo
-      run: sbt publishSigned
       
