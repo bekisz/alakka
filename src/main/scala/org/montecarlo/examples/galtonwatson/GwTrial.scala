@@ -16,7 +16,7 @@ import scala.collection.immutable
  * @param seedNode the initial node the is the subject of our enquiry
  */
 class GwTrial( val maxPopulation:Long= 100, val seedNode:GwNode = new GwNode(lambdaForPoisson = 1.0))
-extends Trial with  Serializable
+  extends Trial with  Serializable
 {
   var livingNodes:immutable.List[GwNode]= seedNode :: immutable.List[GwNode]()
 
@@ -24,14 +24,9 @@ extends Trial with  Serializable
   override def turn(): Long = _turn
 
   private var _isSeedDominant = false
-
-
   def isSeedDominant:Boolean = _isSeedDominant
 
-  // private var _isFinished = false
-  def isFinished:Boolean = {
-    this.livingNodes.isEmpty || this.isSeedDominant
-  }
+  def isFinished:Boolean = this.livingNodes.isEmpty || this.isSeedDominant
   override def nextTurn() : GwTrial = {
     var nextGenNodes = List[GwNode]()
     for(node <- livingNodes) {
@@ -45,13 +40,6 @@ extends Trial with  Serializable
     _turn +=1
     this
   }
-  override def run() :GwTrial = {
-    while(!this.isFinished ) {
-      this.nextTurn()
-    }
-    this
-  }
-
 }
 
 

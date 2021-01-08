@@ -12,11 +12,6 @@ import java.util.UUID
 trait Trial extends Serializable  {
   def isFinished: Boolean
 
-  /**
-   * Runs the trial with 1-many turns till it gets finished
-   * @return this trial
-   */
-  def run():Trial
 
   /**
    * @return turn number ~ time
@@ -29,8 +24,20 @@ trait Trial extends Serializable  {
    */
   def nextTurn() : Trial
 
+
+  /**
+   * Runs the trial with 1-many turns till it gets finished
+   * @return this trial
+   */
+  def run() : Trial = {
+    while(!this.isFinished ) {
+      this.nextTurn()
+    }
+    this
+  }
+
   /**
    * The universally unique id of this trial
    */
-  val trialUniqueId = UUID.randomUUID().toString
+  val trialUniqueId: String = UUID.randomUUID().toString
 }

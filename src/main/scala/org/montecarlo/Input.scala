@@ -9,7 +9,7 @@ import scala.reflect.runtime.universe
  * multiple Trial inputs.
  *
  * Input to an experiment can have parameters each holding
- * multiple values (multiplicty>1), however
+ * multiple values (multiplicity>1), however
  * a single trial accepts input with parameters that has multiplicity of 1.
  *
  * It uses Scala's reflection to discover parameters declared within the subtype.
@@ -34,25 +34,28 @@ trait Input extends HasMultiplicity {
   }
 
   /**
-   * Uses reflection to fetche all the fields within this instance,
+   * Uses reflection to fetch all the fields within this instance,
    * that are subtype of ParameterBase
     * @return
    */
   def fetchParameters() : IndexedSeq[ParameterBase] = {
-    this.getClass.getDeclaredFields
-      .map(paramField => {
-        paramField.setAccessible(true)
-        paramField.get(this)
-      })
-      .collect {
-        case p: ParameterBase => p
-      }
+    val fields = this.getClass.getDeclaredFields
+      if (fields.nonEmpty) {
+        fields.map(paramField => {
+          paramField.setAccessible(true)
+          paramField.get(this)
+        })
+          .collect {
+            case p: ParameterBase => p
+          }
+      } else IndexedSeq(Parameter[Int](0))
+
 
   }
 
   /**
    * All possible combinations of Parameters within this instance.
-   * In practice it is the product of all the multiplicities of all Paramater[x] fields
+   * In practice it is the product of all the multiplicities of all Parameter[x] fields
    *
    * @return the multiplicity
    */
