@@ -20,7 +20,7 @@ import scala.reflect.ClassTag
  * @param input The range of variables for the trials that are executed. Each value will executed by
  *              monteCarloMultiplicity times
  * @param monteCarloMultiplicity The number of trials executed for each potential input variation
- * @param trialBuilderFunction  This the fuction experiment uses to construct the new trial
+ * @param trialBuilderFunction  This the function experiment uses to construct the new trial
  * @param outputCollectorBuilderFunction The function that creates the output collector, the OutputType is the
  *                                       the class that is used in a Dataset or Dataframe later on so its field will
  *                                       act like table columns

@@ -9,7 +9,7 @@ abstract class ParameterBase extends HasMultiplicity {
    * @return The first inner parameter as Any
    */
   def headAsAny() : Any
-  def explode:IndexedSeq[ParameterBase]
+  def explode:Seq[ParameterBase]
   /**
    * @return the number of inner parameters
    */
@@ -26,7 +26,7 @@ abstract class ParameterBase extends HasMultiplicity {
  * A Parameter instance can be constructed from a Seq[T] or by a single T instance with implicit type conversion via
  * Parameter.implicitConversions
  */
-case class Parameter[T](elements:IndexedSeq[T]) extends ParameterBase {
+case class Parameter[T](elements:Seq[T]) extends ParameterBase {
   /**
    * @return The first inner parameter as T
    */
@@ -45,7 +45,7 @@ case class Parameter[T](elements:IndexedSeq[T]) extends ParameterBase {
   /**
    * @return Takes all inner parameters and converts to be be standalone Parameters
    */
-  override def explode:IndexedSeq[ParameterBase] =
+  override def explode:Seq[ParameterBase] =
     for( element <- this.elements) yield Parameter[T](Vector(element))
 }
 
@@ -64,7 +64,7 @@ object Parameter {
    * <ul>
    */
   object implicitConversions  {
-    implicit def fromIndexedSeq[T](value:IndexedSeq[T]) :Parameter[T] = Parameter[T](value)
+    implicit def fromIndexedSeq[T](value:Seq[T]) :Parameter[T] = Parameter[T](value)
     implicit def fromT[T](t:T) : Parameter[T] = Parameter(t)
     implicit def toT[T](parameter:Parameter[T]) : T = parameter.head()
   }

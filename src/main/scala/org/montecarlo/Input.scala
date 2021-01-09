@@ -38,7 +38,7 @@ trait Input extends HasMultiplicity {
    * that are subtype of ParameterBase
     * @return
    */
-  def fetchParameters() : IndexedSeq[ParameterBase] = {
+  def fetchParameters() : Seq[ParameterBase] = {
     val fields = this.getClass.getDeclaredFields
       if (fields.nonEmpty) {
         fields.map(paramField => {
@@ -48,7 +48,7 @@ trait Input extends HasMultiplicity {
           .collect {
             case p: ParameterBase => p
           }
-      } else IndexedSeq(Parameter[Int](0))
+      } else Seq(Parameter[Int](0))
 
 
   }
@@ -71,7 +71,7 @@ trait Input extends HasMultiplicity {
    *
    * @return The Input Instance
   */
-  private[this] def inputBuilder(params:List[ParameterBase]): Input = {
+  private[this] def inputBuilder(params:Seq[ParameterBase]): Input = {
     val runtimeMirror: universe.Mirror = universe.runtimeMirror(getClass.getClassLoader)
     val classSymbol = runtimeMirror.staticClass(this.getClass.getName)
     val classMirror = runtimeMirror.reflectClass(classSymbol)
