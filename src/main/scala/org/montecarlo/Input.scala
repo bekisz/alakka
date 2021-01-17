@@ -66,7 +66,7 @@ trait Input extends HasMultiplicity {
    * This is to the replace the need of adding this builder method in the subtype of this class
    *
    * override def inputBuilder(params:List[ParameterBase]): GwInput = params match {
-   *    case (lambda: Parameter[Double] ) :: (maxPopulation: Parameter[Long] ) :: Nil => GwInput (lambda, maxPopulation)
+   *    case (resourceAcquisitionFitness: Parameter[Double] ) :: (totalResource: Parameter[Long] ) :: Nil => GwInput (resourceAcquisitionFitness, totalResource)
    * }
    *
    * @return The Input Instance
@@ -80,3 +80,9 @@ trait Input extends HasMultiplicity {
   }
 
 }
+
+/**
+ * If the experiement has no other imput than the Monte Carlo multuplicity this empty input can be used
+ * out of the box.
+ */
+case class EmptyInput() extends Input

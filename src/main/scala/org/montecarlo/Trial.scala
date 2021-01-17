@@ -10,29 +10,30 @@ import java.util.UUID
  * All Trials subclasses inherit an universal unique ID
  */
 trait Trial extends Serializable  {
+
+  private var _turn = 0L
+
   def isFinished: Boolean
-
-
   /**
    * @return turn number ~ time
    */
-  def turn():Long
+  def turn(): Long = _turn
 
   /**
    * Takes one turn
-   * @return this trial
+   * @return true if is has a next turn, false it was the final turn for this trial
    */
-  def nextTurn() : Trial
-
+  def nextTurn() : Boolean = {
+    _turn +=1
+    !this.isFinished
+  }
 
   /**
    * Runs the trial with 1-many turns till it gets finished
    * @return this trial
    */
   def run() : Trial = {
-    while(!this.isFinished ) {
-      this.nextTurn()
-    }
+    while(this.nextTurn()) {}
     this
   }
 

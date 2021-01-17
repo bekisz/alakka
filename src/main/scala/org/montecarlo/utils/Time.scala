@@ -42,8 +42,7 @@ object Time {
     val t0 = java.lang.System.currentTimeMillis()
     val result = block // call-by-name
     val t1 = java.lang.System.currentTimeMillis()
-    print("Elapsed turn: " + durationFromMillisToHumanReadable(t1 - t0))
-
+    println("Elapsed turn: " + durationFromMillisToHumanReadable(t1 - t0))
     result
   }
 

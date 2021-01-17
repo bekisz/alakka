@@ -58,9 +58,9 @@ object Parameter {
    * With this you can initialize parameters in a more intuitive way.
    * Input fields can get parameter definitions like
    * <ul>
-   * <li>lambda : Parameter[Double] = 1.2</li>
-   * <li>lambda : Parameter[Double] = Vector(1.2, 1.5, 2.0)</li>
-   * <li>maxPopulation:Parameter[Long] = 1000 to 5000 by 1000</li>
+   * <li>resourceAcquisitionFitness : Parameter[Double] = 1.2</li>
+   * <li>resourceAcquisitionFitness : Parameter[Double] = Vector(1.2, 1.5, 2.0)</li>
+   * <li>totalResource:Parameter[Long] = 1000 to 5000 by 1000</li>
    * <ul>
    */
   object implicitConversions  {

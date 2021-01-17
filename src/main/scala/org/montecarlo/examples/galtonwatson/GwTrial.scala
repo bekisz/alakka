@@ -20,14 +20,16 @@ class GwTrial( val maxPopulation:Long= 100, val seedNode:GwNode = new GwNode(lam
 {
   var livingNodes:immutable.List[GwNode]= seedNode :: immutable.List[GwNode]()
 
-  private var _turn = 0L
-  override def turn(): Long = _turn
-
   private var _isSeedDominant = false
   def isSeedDominant:Boolean = _isSeedDominant
 
   def isFinished:Boolean = this.livingNodes.isEmpty || this.isSeedDominant
-  override def nextTurn() : GwTrial = {
+
+  /**
+   * One more turn
+   *  @return true if is has a next turn, false it was the final turn for this trial
+   */
+  override def nextTurn() : Boolean = {
     var nextGenNodes = List[GwNode]()
     for(node <- livingNodes) {
       val children = node.createChildren()
@@ -37,8 +39,7 @@ class GwTrial( val maxPopulation:Long= 100, val seedNode:GwNode = new GwNode(lam
         this._isSeedDominant = true
     }
     this.livingNodes = nextGenNodes
-    _turn +=1
-    this
+    super.nextTurn()
   }
 }
 

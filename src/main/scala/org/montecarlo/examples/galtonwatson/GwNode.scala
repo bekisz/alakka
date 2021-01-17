@@ -11,7 +11,7 @@ class GwNode(val lambdaForPoisson:Double)  extends Serializable  {
 
 
   def createChildren() : List[GwNode] = {
-    val numberOfChildren = utils.Statistics.nextRandomDescendantsPoisson(this.lambdaForPoisson)
+    val numberOfChildren = utils.Statistics.nextRandomPoisson(this.lambdaForPoisson)
     List.fill(numberOfChildren)(new GwNode(this.lambdaForPoisson))
   }
 }
