@@ -66,7 +66,7 @@ trait Input extends HasMultiplicity {
    * This is to the replace the need of adding this builder method in the subtype of this class
    *
    * override def inputBuilder(params:List[ParameterBase]): GwInput = params match {
-   *    case (lambda: Parameter[Double] ) :: (maxPopulation: Parameter[Long] ) :: Nil => GwInput (lambda, maxPopulation)
+   *    case (resourceAcquisitionFitness: Parameter[Double] ) :: (totalResource: Parameter[Long] ) :: Nil => GwInput (resourceAcquisitionFitness, totalResource)
    * }
    *
    * @return The Input Instance

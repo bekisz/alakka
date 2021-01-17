@@ -2,13 +2,14 @@ package org.montecarlo.examples
 
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.functions.avg
-import org.montecarlo.{Experiment, Input}
-import org.montecarlo.Parameter.implicitConversions._
-import org.montecarlo.examples.galtonwatson._
+import org.montecarlo.examples.galtonwatson.{GwAnalyzer, GwInput, GwNode, GwOutput, GwTrial}
+import org.montecarlo.examples.gwr.{Gene, GwrAnalyzer, GwrNode, GwrOutput, GwrTrial, GwwrInput}
 import org.montecarlo.examples.pi.{PiInput, PiOutput, PiTrial}
 import org.montecarlo.utils.Time.time
+import org.montecarlo.{Experiment, Input}
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
+import org.montecarlo.Parameter.implicitConversions._
 
 class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
 
@@ -16,6 +17,29 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
 
   }
   after {
+
+  }
+
+  test("Pi Estimation Experiment") {
+    time {
+      val experiment = new Experiment[Input,PiTrial,PiOutput](
+        name = "Estimation of Pi by Monte Carlo method",
+        input = PiInput(),
+        monteCarloMultiplicity = 1000000,
+        trialBuilderFunction = _ => new PiTrial(),
+        outputCollectorBuilderFunction =  PiOutput(_),
+        outputCollectorNeededFunction = _.isFinished,
+        sparkConf = new SparkConf().setMaster("local[*]")
+      )
+      import experiment.spark.implicits._
+      val outputDS = experiment.run().toDS().cache()
+      outputDS.show(10)
+      val pi = outputDS.select(avg($"isInCircle".cast("Integer"))).first().getAs[Double](0) * 4
+      println(s"Estimated Pi is $pi after ${outputDS.count()} trials.")
+      //experiment.spark.stop()
+      assert(pi>3.1 && pi<3.2)
+    }
+
 
   }
   test("Galton-Watson Experiment") {
@@ -55,26 +79,42 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       + f"${turns.toDouble / trials}%1.1f turns per trial\n")
 
   }
-  test("Pi Estimation Experiment") {
-    time {
-      val experiment = new Experiment[Input,PiTrial,PiOutput](
-        name = "Estimation of Pi by Monte Carlo method",
-        input = PiInput(),
-        monteCarloMultiplicity = 1000000,
-        trialBuilderFunction = _ => new PiTrial(),
-        outputCollectorBuilderFunction =  PiOutput(_),
-        outputCollectorNeededFunction = _.isFinished,
-        sparkConf = new SparkConf().setMaster("local[*]")
-      )
-      import experiment.spark.implicits._
-      val outputDS = experiment.run().toDS().cache()
-      outputDS.show(10)
-      val pi = outputDS.select(avg($"isInCircle".cast("Integer"))).first().getAs[Double](0) * 4
-      println(s"Estimated Pi is $pi after ${outputDS.count()} trials.")
-      //experiment.spark.stop()
-      assert(pi>3.1 && pi<3.2)
-    }
 
+  test("Galton-Watson Experiment with Resource Limitation ") {
+
+    val experiment = new Experiment[GwwrInput,GwrTrial,GwrOutput](
+      name = "Galton-Watson with Resources Experiment",
+      input = GwwrInput(),
+      monteCarloMultiplicity = 1000,
+      outputCollectorBuilderFunction = trial => GwrOutput(trial),
+
+      trialBuilderFunction = trialInput => new GwrTrial(
+        maxResource = trialInput.totalResource,
+        seedNode = new GwrNode(Gene(trialInput.seedResourceAcquisitionFitness, label = "seed")),
+        nrOfSeedNodes = 1,
+        opponentNode = new GwrNode(Gene(1.0, label = "opponent"))
+      ),
+      outputCollectorNeededFunction = trial => trial.turn %1 ==0 || trial.isFinished,
+      sparkConf = new SparkConf().setMaster("local[*]")
+    )
+    import experiment.spark.implicits._
+    val trialOutputDS = experiment.run().toDS().cache()
+    trialOutputDS.show(20)
+
+    val analyzer = new GwrAnalyzer(trialOutputDS)
+
+    analyzer.survivalProbabilityByLambda(confidence = 0.99)
+      .collect().foreach( aggregatedOutput => println(aggregatedOutput.toString()))
+    analyzer.averagePopulationByLambdaAndTime(30).show(100)
+
+
+    //analyzer.expectedExtinctionTimesByLambda().show()
+    val turns = analyzer.turns()
+    val trials = analyzer.trials()
+    assert(trials * 5 < turns)
+
+    println(s"\n$turns turns processed in $trials trials, averaging "
+      + f"${turns.toDouble / trials}%1.1f turns per trial\n")
 
   }
 }

@@ -5,11 +5,11 @@ import org.montecarlo.{Experiment, Input, Parameter}
 
 /**
  * Input to our  <A HREF="https://en.wikipedia.org/wiki/Galton%E2%80%93Watson_process">Galton-Watson</A> Experiment.
- * Experiment runs all the combinations of these lambda and maxPopulation variations. All fields should have type of
+ * Experiment runs all the combinations of these resourceAcquisitionFitness and totalResource variations. All fields should have type of
  * Paramater[T]. These parameters can be initialized with a Seq of T object or with the help implicit conversions with
  * T instances directly. These will be converted as a Seq with one element
  *
- * @param lambda The lambda of the Poisson distribution for the random generation of children nodes. It is also the
+ * @param lambda The resourceAcquisitionFitness of the Poisson distribution for the random generation of children nodes. It is also the
  *               expected number of children of the seed nodes and its descendants
  * @param maxPopulation The theoretical work of Galton-Watson is limitless, and the seed node population grows
  *                      exponentially. For simulation though, it is necessary to define cut off point where we

@@ -23,12 +23,12 @@ class Trial (context: ActorContext[Trial.Message]
              // val examinedPopulation:Long = 1l,
              // val initialPopulation:Long = 1l,
              // val nrOfChildrenProbabilityFunction : ()=> Int,
-             // val maxPopulation:Long = Long.MaxValue
+             // val totalResource:Long = Long.MaxValue
             ) extends AbstractBehavior[Trial.Message](/*context*/) {
-  //GwTrial(context:ActorContext[GwTrial.Message]) {
+  //GwrTrial(context:ActorContext[GwrTrial.Message]) {
 
   //}
-  //import GwTrial._
+  //import GwrTrial._
   protected def run() : Trial = {
 
     this
@@ -40,8 +40,8 @@ class Trial (context: ActorContext[Trial.Message]
       =>
         val initedResponse: Agent.InitedResponse = agentResponse.asInstanceOf[Agent.InitedResponse]
 
-        context.log.debug("GwTrial Response Received")
-        //println(s"GwTrial ${startedResponse.replyTo.ref} response received with #${startedResponse.rounds} rounds")
+        context.log.debug("GwrTrial Response Received")
+        //println(s"GwrTrial ${startedResponse.replyTo.ref} response received with #${startedResponse.rounds} rounds")
         this
 
     }

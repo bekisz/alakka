@@ -13,7 +13,7 @@ object Statistics {
    * @param lambda Lambda for Poisson distribution
    * @return
    */
-  def nextRandomDescendantsPoisson(lambda:Double) :Int = {
+  def nextRandomPoisson(lambda:Double) :Int = {
     val l = Math.exp(-lambda)
     var p = 1.0
     var k = 0
