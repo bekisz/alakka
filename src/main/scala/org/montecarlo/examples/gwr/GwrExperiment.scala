@@ -62,14 +62,14 @@ object GwrExperiment {
         name = "Galton-Watson with Resources Experiment",
         input = GwrInput(),
         monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 20000,
-        outputCollectorBuilderFunction = trial => GwrOutput(trial),
 
         trialBuilderFunction = trialInput => new GwrTrial(
           maxResource = trialInput.totalResource,
           seedNode = new GwrNode(Gene(trialInput.seedResourceAcquisitionFitness, label = "seed")),
           nrOfSeedNodes = 1,
           opponentNode = new GwrNode(Gene(1.0, label = "opponent"))),
-        outputCollectorNeededFunction = trial => trial.turn %1 ==0 || trial.isFinished
+        outputCollectorNeededFunction = trial => trial.turn %1 ==0 || trial.isFinished,
+        outputCollectorBuilderFunction = trial => GwrOutput(trial)
       )
       import experiment.spark.implicits._
       val trialOutputDS = experiment.run().toDS().cache()

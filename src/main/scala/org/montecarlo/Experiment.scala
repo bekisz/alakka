@@ -64,20 +64,18 @@ class Experiment[InputType<:Input:ClassTag,
 
     this.welcomeMessage()
     spark.sparkContext
-        .parallelize(this.input.createInputPermutations().asInstanceOf[Seq[InputType]])
-        .flatMap( in => List.fill(this.monteCarloMultiplicity)(in))
+      .parallelize(this.input.createInputPermutations().asInstanceOf[Seq[InputType]])
+      .flatMap( in => List.fill(this.monteCarloMultiplicity)(in))
       .flatMap (input => {
         val trial = this.trialBuilderFunction(input)
         var outputList = List[OutputType]()
-        do {
+        if (this.outputCollectorNeededFunction(trial))
+          outputList = this.outputCollectorBuilderFunction(trial) :: outputList
+        while (trial.nextTurn()) {
           if (this.outputCollectorNeededFunction(trial))
             outputList = this.outputCollectorBuilderFunction(trial) :: outputList
-        } while (trial.nextTurn())
-        if (this.outputCollectorNeededFunction(trial))
-            outputList = this.outputCollectorBuilderFunction(trial) :: outputList
-
+        }
         outputList.reverse
-
     })
   }
 

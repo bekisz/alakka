@@ -87,8 +87,6 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       name = "Galton-Watson with Resources Experiment",
       input = GwrInput(),
       monteCarloMultiplicity = 1000,
-      outputCollectorBuilderFunction = trial => GwrOutput(trial),
-
       trialBuilderFunction = trialInput => new GwrTrial(
         maxResource = trialInput.totalResource,
         seedNode = new GwrNode(Gene(trialInput.seedResourceAcquisitionFitness, label = "seed")),
@@ -96,6 +94,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
         opponentNode = new GwrNode(Gene(1.0, label = "opponent"))
       ),
       outputCollectorNeededFunction = trial => trial.turn %1 ==0 || trial.isFinished,
+      outputCollectorBuilderFunction = trial => GwrOutput(trial),
       sparkConf = new SparkConf().setMaster("local[*]")
     )
     import experiment.spark.implicits._
