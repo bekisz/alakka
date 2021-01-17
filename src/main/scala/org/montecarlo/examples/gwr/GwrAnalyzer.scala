@@ -27,12 +27,13 @@ class GwrAnalyzer(val gwOutputDS:Dataset[GwrOutput]) {
     println(s"\nSurvival Probabilities within ${confidence*100}% confidence interval by lambdas" )
     import spark.implicits._
     val survivalProb = gwOutputDS.filter(_.isFinished)
-      .groupBy("resourceAcquisitionFitness").agg(
-      avg($"isSeedDominant".cast("Integer")).as("survivalProbability"),
-      stddev($"isSeedDominant".cast("Integer")).as("stdDevProbability"),
-      count($"isSeedDominant").as("noOfTrials"),
-      sum($"turn").as("sumOfTime"))
-
+      .groupBy("resourceAcquisitionFitness")
+      .agg(
+        avg($"isSeedDominant".cast("Integer")).as("survivalProbability"),
+        stddev($"isSeedDominant".cast("Integer")).as("stdDevProbability"),
+        count($"isSeedDominant").as("noOfTrials"),
+        sum($"turn").as("sumOfTime")
+      )
     val survivalProbConf: Dataset[TrialOutputByLambda] = survivalProb.map {
       row =>
         val lambda = row.getAs[Double](0)
