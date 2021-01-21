@@ -1,7 +1,8 @@
 package org.montecarlo.examples.pi
 import org.apache.spark.sql.functions.avg
+import org.apache.spark.sql.types.DataTypes
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{EmptyInput, Experiment, Trial}
+import org.montecarlo.{Analyzer, EmptyInput, Experiment, Trial}
 
 import scala.math.random
 /**
@@ -45,17 +46,21 @@ object PiExperiment {
     time {
       val experiment = new Experiment[EmptyInput,PiTrial,PiOutput](
         name = "Estimation of Pi by the Monte Carlo method",
-        input = EmptyInput(),
         monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 1000,
-        trialBuilderFunction = _ => new PiTrial(20000),
+        trialBuilderFunction = _ => new PiTrial(2000),
         outputCollectorBuilderFunction =  PiOutput(_),
         outputCollectorNeededFunction =  _.turn() !=0 // we don't need initial pre-run trial outputs
       )
       import experiment.spark.implicits._
-      val outputDS = experiment.run().toDS().cache()
-      outputDS.show(10)
-      val pi = outputDS.select(avg($"isInCircle".cast("Integer"))).first().getAs[Double](0) * 4
-      println(s"Estimated Pi is $pi after ${outputDS.count()} results in ${experiment.monteCarloMultiplicity} trials.")
+      val outputDF = experiment.run().toDF()
+        .withColumn("piValue",$"isInCircle".cast(DataTypes.IntegerType) * 4).cache()
+      outputDF.show(10)
+
+      val pi = outputDF.select(avg($"piValue")).first().getAs[Double](0)
+      println(s"Estimated Pi is $pi after ${outputDF.count()} results in ${experiment.monteCarloMultiplicity} trials.")
+      println("Confidence level : ")
+      Analyzer.calculateConfidenceIntervals(outputDF.select("piValue"),
+        Seq(0.99,0.999,0.9999, 0.99999) ).foreach(t => println(t.toString))
       experiment.spark.stop()
     }
   }

@@ -2,7 +2,7 @@ package org.montecarlo.examples.gwr
 
 import org.montecarlo.Parameter.implicitConversions._
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Experiment, Input, Parameter}
+import org.montecarlo.{Analyzer, Experiment, Input, Parameter}
 
 /**
  * Input to our  <A HREF="https://en.wikipedia.org/wiki/Galton%E2%80%93Watson_process">Galton-Watson</A> Experiment.
@@ -77,9 +77,11 @@ object GwrExperiment {
 
       val analyzer = new GwrAnalyzer(trialOutputDS)
 
-      analyzer.survivalProbabilityByLambda(confidence = 0.99)
-        .collect().foreach( aggregatedOutput => println(aggregatedOutput.toString()))
-      analyzer.averagePopulationByLambdaAndTime(30).show(100)
+      println("Confidence Intervals for the survival probabilities")
+      Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
+        .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
+        .groupBy("resourceAcquisitionFitness"),
+        "survivalChance",List(0.95,0.99,0.999)).orderBy("resourceAcquisitionFitness").show()
 
 
       //analyzer.expectedExtinctionTimesByLambda().show()

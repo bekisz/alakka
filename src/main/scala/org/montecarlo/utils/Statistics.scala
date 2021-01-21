@@ -4,6 +4,16 @@ import org.apache.commons.math3.distribution.{NormalDistribution, TDistribution}
 
 import scala.math.sqrt
 
+case class ConfidenceInterval(mean: Double, low: Double, high: Double, confidence: Double) {
+  override def toString: String = {
+
+    val str = new StringBuilder(50)
+    str ++= "[" ++= f"$low%1.5f" ++= " -> " ++=
+      f"$mean%1.5f" ++= " -> " ++= f"$high%1.5f" ++= s"] with ${confidence*100} %"
+    str.toString
+  }
+}
+
 object Statistics {
   /**
    * Generates a random number with Poisson distribution

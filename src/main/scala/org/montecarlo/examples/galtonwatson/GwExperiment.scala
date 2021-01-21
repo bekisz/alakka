@@ -1,7 +1,7 @@
 package org.montecarlo.examples.galtonwatson
 import org.montecarlo.Parameter.implicitConversions._
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Experiment, Input, Parameter}
+import org.montecarlo.{Analyzer, Experiment, Input, Parameter}
 
 /**
  * Input to our  <A HREF="https://en.wikipedia.org/wiki/Galton%E2%80%93Watson_process">Galton-Watson</A> Experiment.
@@ -17,7 +17,7 @@ import org.montecarlo.{Experiment, Input, Parameter}
  */
 case class GwInput(
                     lambda:Parameter[Double] = Vector(1.2, 1.5, 2.0),
-                    maxPopulation:Parameter[Long] = Vector(1000L, 3000L)
+                    maxPopulation:Parameter[Long] = 1000L
                   ) extends Input
 
 /**
@@ -53,11 +53,11 @@ object GwExperiment {
       val experiment = new Experiment[GwInput,GwTrial,GwOutput](
         name = "Galton-Watson Experiment",
         input = GwInput(),
-        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 100,
+        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 1000,
         trialBuilderFunction = trialInput => new GwTrial( trialInput.maxPopulation,
           seedNode = new GwNode(trialInput.lambda )),
         outputCollectorBuilderFunction = trial => GwOutput(trial),
-        outputCollectorNeededFunction = trial => trial.turn() % 2 ==0 || trial.isFinished
+        outputCollectorNeededFunction = trial =>  trial.isFinished
       )
 
 
@@ -67,12 +67,14 @@ object GwExperiment {
 
       val analyzer = new GwAnalyzer(trialOutputDS)
 
-      analyzer.survivalProbabilityByLambda(confidence = 0.99)
-        .collect().foreach( aggregatedOutput => println(aggregatedOutput.toString()))
       analyzer.averagePopulationByLambdaAndTime(10).show(100)
 
+      println("Confidence Intervals for the survival probabilities")
+      Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
+        .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
+        .groupBy("lambda"),
+        "survivalChance",List(0.95,0.99,0.999)).orderBy("lambda").show()
 
-      analyzer.expectedExtinctionTimesByLambda().show()
       val turns = analyzer.turns()
       val trials = analyzer.trials()
       println(s"\n$turns turns processed in $trials trials, averaging "

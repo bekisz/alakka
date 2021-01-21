@@ -31,8 +31,8 @@ import scala.reflect.ClassTag
  */
 class Experiment[InputType<:Input:ClassTag,
   TrialType<:Trial:ClassTag, OutputType:ClassTag](val name:String,
-                                                  val input: InputType,
-                                                  val monteCarloMultiplicity:Int,
+                                                  val input: InputType = EmptyInput(),
+                                                  val monteCarloMultiplicity:Int = 1000,
                                                   val trialBuilderFunction : InputType => TrialType,
                                                   val outputCollectorBuilderFunction : TrialType => OutputType,
                                                   val outputCollectorNeededFunction  : TrialType => Boolean,
@@ -69,12 +69,13 @@ class Experiment[InputType<:Input:ClassTag,
       .flatMap (input => {
         val trial = this.trialBuilderFunction(input)
         var outputList = List[OutputType]()
-        if (this.outputCollectorNeededFunction(trial))
-          outputList = this.outputCollectorBuilderFunction(trial) :: outputList
-        while (trial.nextTurn()) {
+        do {
           if (this.outputCollectorNeededFunction(trial))
             outputList = this.outputCollectorBuilderFunction(trial) :: outputList
-        }
+        } while (trial.nextTurn())
+          if (this.outputCollectorNeededFunction(trial))
+          outputList = this.outputCollectorBuilderFunction(trial) :: outputList
+
         outputList.reverse
     })
   }

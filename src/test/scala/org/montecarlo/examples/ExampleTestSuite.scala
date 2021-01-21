@@ -3,10 +3,10 @@ package org.montecarlo.examples
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.functions.avg
 import org.montecarlo.examples.galtonwatson.{GwAnalyzer, GwInput, GwNode, GwOutput, GwTrial}
-import org.montecarlo.examples.gwr.{Gene, GwrAnalyzer, GwrNode, GwrOutput, GwrTrial, GwrInput}
+import org.montecarlo.examples.gwr.{Gene, GwrAnalyzer, GwrInput, GwrNode, GwrOutput, GwrTrial}
 import org.montecarlo.examples.pi.{PiOutput, PiTrial}
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{EmptyInput, Experiment, Input}
+import org.montecarlo.{Analyzer, EmptyInput, Experiment, Input}
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
 import org.montecarlo.Parameter.implicitConversions._
@@ -24,8 +24,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     time {
       val experiment = new Experiment[Input,PiTrial,PiOutput](
         name = "Estimation of Pi by Monte Carlo method",
-        input = EmptyInput(),
-        monteCarloMultiplicity = 1000000,
+        monteCarloMultiplicity = 100000,
         trialBuilderFunction = _ => new PiTrial(3),
         outputCollectorBuilderFunction =  PiOutput(_),
         outputCollectorNeededFunction =  _.turn() !=0,
@@ -67,9 +66,11 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
 
     val analyzer = new GwAnalyzer(trialOutputDS)
 
-    analyzer.survivalProbabilityByLambda(confidence = 0.99)
-      .collect().foreach(aggregatedOutput => println(aggregatedOutput.toString()))
-    analyzer.averagePopulationByLambdaAndTime(10).show(100)
+    println("Confidence Intervals for the survival probabilities")
+    Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
+      .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
+      .groupBy("lambda"),
+      "survivalChance",List(0.95,0.99,0.999)).orderBy("lambda").show()
 
 
     analyzer.expectedExtinctionTimesByLambda().show()
@@ -103,12 +104,12 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
 
     val analyzer = new GwrAnalyzer(trialOutputDS)
 
-    analyzer.survivalProbabilityByLambda(confidence = 0.99)
-      .collect().foreach( aggregatedOutput => println(aggregatedOutput.toString()))
-    analyzer.averagePopulationByLambdaAndTime(30).show(100)
+    println("Confidence Intervals for the survival probabilities")
+    Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
+      .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
+      .groupBy("resourceAcquisitionFitness"),
+      "survivalChance",List(0.95,0.99,0.999)).orderBy("resourceAcquisitionFitness").show()
 
-
-    //analyzer.expectedExtinctionTimesByLambda().show()
     val turns = analyzer.turns()
     val trials = analyzer.trials()
     assert(trials * 5 < turns)
