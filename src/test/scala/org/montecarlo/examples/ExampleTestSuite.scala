@@ -2,14 +2,15 @@ package org.montecarlo.examples
 
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.functions.avg
-import org.montecarlo.examples.galtonwatson.{GwAnalyzer, GwInput, GwNode, GwOutput, GwTrial}
-import org.montecarlo.examples.gwr.{Gene, GwrAnalyzer, GwrInput, GwrNode, GwrOutput, GwrTrial}
+import org.montecarlo.Parameter.implicitConversions._
+import org.montecarlo.examples.gw._
+import org.montecarlo.examples.gwr._
 import org.montecarlo.examples.pi.{PiOutput, PiTrial}
+import org.montecarlo.examples.replicator.{Replicator, ReplicatorAnalyzer, ReplicatorInput, ReplicatorOutput, ReplicatorTrial, Gene => RGene}
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Analyzer, EmptyInput, Experiment, Input}
+import org.montecarlo.{Analyzer, Experiment, Input, Parameter}
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
-import org.montecarlo.Parameter.implicitConversions._
 
 class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
 
@@ -22,12 +23,12 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
 
   test("Pi Estimation Experiment") {
     time {
-      val experiment = new Experiment[Input,PiTrial,PiOutput](
+      val experiment = new Experiment[Input, PiTrial, PiOutput](
         name = "Estimation of Pi by Monte Carlo method",
         monteCarloMultiplicity = 100000,
         trialBuilderFunction = _ => new PiTrial(3),
-        outputCollectorBuilderFunction =  PiOutput(_),
-        outputCollectorNeededFunction =  _.turn() !=0,
+        outputCollectorBuilderFunction = PiOutput(_),
+        outputCollectorNeededFunction = _.turn() != 0,
         sparkConf = new SparkConf().setMaster("local[*]")
       )
       import experiment.spark.implicits._
@@ -37,7 +38,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       println(s"Estimated Pi is $pi after ${outputDS.count()} results in ${experiment.monteCarloMultiplicity} trials.")
 
       //experiment.spark.stop()
-      assert(pi>3.1 && pi<3.2)
+      assert(pi > 3.1 && pi < 3.2)
     }
 
 
@@ -47,7 +48,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     val experiment = new Experiment[GwInput, GwTrial, GwOutput](
       name = "Galton-Watson Experiment",
       input = GwInput(
-        lambda = Vector(1.0, 1.2, 1.5, 2.0), maxPopulation = 1000
+        lambda = Vector(1.0, 1.2, 1.5, 2.0), maxPopulation = 1001
       ),
       monteCarloMultiplicity = 500,
       trialBuilderFunction = trialInput => new GwTrial(trialInput.maxPopulation,
@@ -70,7 +71,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
       .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
       .groupBy("lambda"),
-      "survivalChance",List(0.95,0.99,0.999)).orderBy("lambda").show()
+      "survivalChance", List(0.95, 0.99, 0.999)).orderBy("lambda").show()
 
 
     analyzer.expectedExtinctionTimesByLambda().show()
@@ -84,17 +85,20 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
 
   test("Galton-Watson Experiment with Resource Limitation ") {
 
-    val experiment = new Experiment[GwrInput,GwrTrial,GwrOutput](
+    val experiment = new Experiment[GwrInput, GwrTrial, GwrOutput](
       name = "Galton-Watson with Resources Experiment",
-      input = GwrInput(),
-      monteCarloMultiplicity = 1000,
+      input = GwrInput(
+        seedResourceAcquisitionFitness= Seq(1.0, 1.1, 1.2, 1.5, 2.0, 3.0),
+        totalResource = 100L),
+
+      monteCarloMultiplicity = 500,
       trialBuilderFunction = trialInput => new GwrTrial(
         maxResource = trialInput.totalResource,
         seedNode = new GwrNode(Gene(trialInput.seedResourceAcquisitionFitness, label = "seed")),
         nrOfSeedNodes = 1,
         opponentNode = new GwrNode(Gene(1.0, label = "opponent"))
       ),
-      outputCollectorNeededFunction = trial => trial.turn %1 ==0 || trial.isFinished,
+      outputCollectorNeededFunction = trial => trial.turn % 1 == 0 || trial.isFinished,
       outputCollectorBuilderFunction = trial => GwrOutput(trial),
       sparkConf = new SparkConf().setMaster("local[*]")
     )
@@ -108,7 +112,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
       .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
       .groupBy("resourceAcquisitionFitness"),
-      "survivalChance",List(0.95,0.99,0.999)).orderBy("resourceAcquisitionFitness").show()
+      "survivalChance", List(0.95, 0.99, 0.999)).orderBy("resourceAcquisitionFitness").show()
 
     val turns = analyzer.turns()
     val trials = analyzer.trials()
@@ -118,4 +122,44 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       + f"${turns.toDouble / trials}%1.1f turns per trial\n")
 
   }
+  test("Replicator Experiment") {
+    val experiment = new Experiment[ReplicatorInput,ReplicatorTrial,ReplicatorOutput](
+      name = "Galton-Watson with Resources Experiment",
+      input = ReplicatorInput(
+        seedResourceAcquisitionFitness= Vector(1.0, 1.1, 1.2, 1.5, 2.0, 3.0),
+        resilience = Vector(0.0, 0.4, 0.6,0.9, 0.99),
+        totalResource = 100L),
+      monteCarloMultiplicity =  100,
+
+      trialBuilderFunction = trialInput => new ReplicatorTrial(
+        maxResource = trialInput.totalResource,
+        seedReplicator = new Replicator(
+          RGene(trialInput.seedResourceAcquisitionFitness, trialInput.resilience, label = "seed")),
+        nrOfSeedReplicators = 1,
+        opponentReplicator = new Replicator(
+          RGene(resourceAcquisitionFitness = 1.0, label = "opponent"))),
+      outputCollectorNeededFunction = trial => trial.turn %1 ==0 || trial.isFinished,
+      outputCollectorBuilderFunction = trial => ReplicatorOutput(trial),
+      sparkConf = new SparkConf().setMaster("local[*]")
+    )
+    import experiment.spark.implicits._
+    val trialOutputDS = experiment.run().toDS().cache()
+    trialOutputDS.show(20)
+
+    val analyzer = new ReplicatorAnalyzer(trialOutputDS)
+
+    println("Confidence Intervals for the survival probabilities")
+    Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
+      .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
+      .groupBy("resourceAcquisitionFitness", "resilience"),
+      "survivalChance",List(0.99))
+      .orderBy("resourceAcquisitionFitness","resilience").show(100)
+
+    val turns = analyzer.turns()
+    val trials = analyzer.trials()
+    println(s"\n$turns turns processed in $trials trials, averaging "
+      + f"${turns.toDouble / trials}%1.1f turns per trial\n")
+
+  }
+
 }

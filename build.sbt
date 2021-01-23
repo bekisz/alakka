@@ -55,7 +55,7 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.2.3" % Test,
 
   "org.apache.spark" %% "spark-sql" %  sparkVersion,
-   "org.apache.spark" %% "spark-core" % sparkVersion,
+  "io.continuum.bokeh" %% "bokeh" % "0.6",
   "org.apache.logging.log4j" %% "log4j-api-scala" % "11.0"
 
 )

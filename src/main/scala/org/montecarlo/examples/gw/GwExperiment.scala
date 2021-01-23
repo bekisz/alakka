@@ -1,4 +1,4 @@
-package org.montecarlo.examples.galtonwatson
+package org.montecarlo.examples.gw
 import org.montecarlo.Parameter.implicitConversions._
 import org.montecarlo.utils.Time.time
 import org.montecarlo.{Analyzer, Experiment, Input, Parameter}
@@ -9,8 +9,8 @@ import org.montecarlo.{Analyzer, Experiment, Input, Parameter}
  * Paramater[T]. These parameters can be initialized with a Seq of T object or with the help implicit conversions with
  * T instances directly. These will be converted as a Seq with one element
  *
- * @param lambda The resourceAcquisitionFitness of the Poisson distribution for the random generation of children nodes. It is also the
- *               expected number of children of the seed nodes and its descendants
+ * @param lambda The resourceAcquisitionFitness of the Poisson distribution for the random generation of children replicators. It is also the
+ *               expected number of children of the seed replicators and its descendants
  * @param maxPopulation The theoretical work of Galton-Watson is limitless, and the seed node population grows
  *                      exponentially. For simulation though, it is necessary to define cut off point where we
  *                      declare our seed node as a survivor

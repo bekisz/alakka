@@ -1,5 +1,4 @@
-package org.montecarlo.examples.gwr
-
+package org.montecarlo.examples.replicator
 import org.montecarlo.Parameter.implicitConversions._
 import org.montecarlo.utils.Time.time
 import org.montecarlo.{Analyzer, Experiment, Input, Parameter}
@@ -18,74 +17,77 @@ import org.montecarlo.{Analyzer, Experiment, Input, Parameter}
  *                                       that it has 20% more chance to acquire resource and then to replicate
  * @param totalResource Number of resource units available for all replicators. One resource unit maintains one node.
  */
-case class GwrInput(
-                      seedResourceAcquisitionFitness:Parameter[Double] = Vector(1.0, 1.1, 1.2, 1.5, 2.0),
-                      totalResource:Parameter[Long] = 100L
-                  ) extends Input
+case class ReplicatorInput(
+                     seedResourceAcquisitionFitness:Parameter[Double] = Vector(1.0, 1.1, 1.2, 1.5, 2.0, 3.0),
+                     resilience:Parameter[Double] = Vector(0.0, 0.4, 0.8, 0.9, 0.99),
+                     totalResource:Parameter[Long] = 100L
+                   ) extends Input
 
 /**
  * These fields are the variables that we save from the trial instances for later analysis and will be the columns
- * in our SQL table (Dataset[GwrOutput])
+ * in our SQL table (Dataset[ReplicatorOutput])
  */
 
-case class GwrOutput(turn: Long,
+case class ReplicatorOutput(turn: Long,
                      isSeedDominant: Boolean,
                      resourceAcquisitionFitness: Double,
+                            resilience: Double,
                      isFinished: Boolean,
                      nrOfSeedNodes:Int,
                      trialUniqueId:String)
-object GwrOutput {
+object ReplicatorOutput {
   /**
    * We extract the output parameters from t
    * @param t The trial
    * @return one raw in the output table
    */
-  def apply(t:GwrTrial):GwrOutput = new GwrOutput(
-      t.turn(),
-      t.isSeedDominant,
-      t.seedNode.gene.resourceAcquisitionFitness,
-      t.isFinished,
-      t.seedNodes().size,
-      t.trialUniqueId
-    )
+  def apply(t:ReplicatorTrial):ReplicatorOutput = new ReplicatorOutput(
+    t.turn(),
+    t.isSeedDominant,
+    t.seedReplicator.gene.resourceAcquisitionFitness,
+    t.seedReplicator.gene.resilience,
+    t.isFinished,
+    t.seedReplicators().size,
+    t.trialUniqueId
+  )
 }
 
 /**
  *  Initiates our  resource limited
  *  <A HREF="https://en.wikipedia.org/wiki/Galton%E2%80%93Watson_process">Galton-Watson</A> Experiment
  */
-object GwrExperiment {
+object ReplicatorExperiment {
   def main(args : Array[String]): Unit = {
     time {
 
-      val experiment = new Experiment[GwrInput,GwrTrial,GwrOutput](
+      val experiment = new Experiment[ReplicatorInput,ReplicatorTrial,ReplicatorOutput](
         name = "Galton-Watson with Resources Experiment",
-        input = GwrInput(),
-        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 20000,
+        input = ReplicatorInput(),
+        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 2000,
 
-        trialBuilderFunction = trialInput => new GwrTrial(
+        trialBuilderFunction = trialInput => new ReplicatorTrial(
           maxResource = trialInput.totalResource,
-          seedNode = new GwrNode(Gene(trialInput.seedResourceAcquisitionFitness, label = "seed")),
-          nrOfSeedNodes = 1,
-          opponentNode = new GwrNode(Gene(1.0, label = "opponent"))),
+          seedReplicator = new Replicator(
+            Gene(trialInput.seedResourceAcquisitionFitness, trialInput.resilience, label = "seed")),
+          nrOfSeedReplicators = 1,
+          opponentReplicator = new Replicator(
+            Gene(resourceAcquisitionFitness = 1.0, resilience = 0.0, label = "opponent"))),
         outputCollectorNeededFunction = trial => trial.turn %1 ==0 || trial.isFinished,
-        outputCollectorBuilderFunction = trial => GwrOutput(trial)
+        outputCollectorBuilderFunction = trial => ReplicatorOutput(trial)
       )
       import experiment.spark.implicits._
       val trialOutputDS = experiment.run().toDS().cache()
       trialOutputDS.show(20)
 
-      val analyzer = new GwrAnalyzer(trialOutputDS)
+      val analyzer = new ReplicatorAnalyzer(trialOutputDS)
 
       println("Confidence Intervals for the survival probabilities")
       Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
         .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
-        .groupBy("resourceAcquisitionFitness" +
-          ""),
-        "survivalChance",List(0.95,0.99,0.999)).orderBy("resourceAcquisitionFitness").show()
+        .groupBy("resourceAcquisitionFitness", "resilience"),
+        "survivalChance",List(0.99))
+        .orderBy("resourceAcquisitionFitness","resilience").show(100)
 
-
-      //analyzer.expectedExtinctionTimesByLambda().show()
       val turns = analyzer.turns()
       val trials = analyzer.trials()
       println(s"\n$turns turns processed in $trials trials, averaging "
