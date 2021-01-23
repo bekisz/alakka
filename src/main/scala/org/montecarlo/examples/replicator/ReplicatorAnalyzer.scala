@@ -1,4 +1,4 @@
-package org.montecarlo.examples.gwr
+package org.montecarlo.examples.replicator
 
 import org.apache.spark.sql.functions.avg
 import org.apache.spark.sql.{DataFrame, Dataset, Row}
@@ -9,7 +9,7 @@ import org.montecarlo.Analyzer
  *
  * @param gwrOutputDS The output Dataset of the Galton-Watson experiment
  */
-class GwrAnalyzer(val gwrOutputDS:Dataset[GwrOutput]) extends Analyzer {
+class ReplicatorAnalyzer(val gwrOutputDS:Dataset[ReplicatorOutput]) extends Analyzer {
 
   override def getOutputDF() : DataFrame = this.gwrOutputDS.toDF()
 
@@ -28,7 +28,7 @@ class GwrAnalyzer(val gwrOutputDS:Dataset[GwrOutput]) extends Analyzer {
     import spark.implicits._
 
     this.gwrOutputDS.filter( _.turn <= maxTurn ).flatMap({ trialOutput =>
-      var listOutput = trialOutput :: List[GwrOutput]()
+      var listOutput = trialOutput :: List[ReplicatorOutput]()
       if (trialOutput.isFinished) {
         listOutput = listOutput :::
           (trialOutput.turn +1 to maxTurn).map(newTime => trialOutput.copy(turn = newTime)).toList

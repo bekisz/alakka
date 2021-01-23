@@ -1,4 +1,4 @@
-package org.montecarlo.examples.galtonwatson
+package org.montecarlo.examples.gw
 
 import org.montecarlo.utils
 

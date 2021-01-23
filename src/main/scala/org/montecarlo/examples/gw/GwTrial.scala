@@ -1,4 +1,4 @@
-package org.montecarlo.examples.galtonwatson
+package org.montecarlo.examples.gw
 
 import org.montecarlo.Trial
 
@@ -12,7 +12,7 @@ import scala.collection.immutable
  *
  * @param maxPopulation Dealing with exponential growth while not having unlimited memory and time forces us to
  *                      specify a cutoff population where we can say that the descendant of our
- *                      seed nodes are survived (till eternity)
+ *                      seed replicators are survived (till eternity)
  * @param seedNode the initial node the is the subject of our enquiry
  */
 class GwTrial( val maxPopulation:Long= 100, val seedNode:GwNode = new GwNode(lambdaForPoisson = 1.0))

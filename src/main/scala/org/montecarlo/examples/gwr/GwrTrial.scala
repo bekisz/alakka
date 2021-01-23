@@ -12,12 +12,12 @@ import org.montecarlo.Trial
  *
  * @param maxResource Dealing with exponential growth while not having unlimited memory and time forces us to
  *                      specify a cutoff population where we can say that the descendant of our
- *                      seed nodes are survived (till eternity). 1 resource unit can maintain one node (replicator)
+ *                      seed replicators are survived (till eternity). 1 resource unit can maintain one node (replicator)
  * @param seedNode the initial node the is the subject of our enquiry
- * @param nrOfSeedNodes The initial number of seed nodes/replicators. seedNode is cloned this many times
+ * @param nrOfSeedNodes The initial number of seed replicators/replicators. seedReplicator is cloned this many times
  * @param opponentNode  One opponent node that is runs again our seed node. Its numbers will be filled as long as
  *                      there are available resources
- * @param dominantQualifier When seedNodes reaches this ratio in the population we consider it a winning position,
+ * @param dominantQualifier When seedReplicators reaches this ratio in the population we consider it a winning position,
  *                          the seed became dominant
  *
  */
@@ -42,7 +42,7 @@ class GwrTrial(val maxResource:Long,
   def seedNodes() : Seq[GwrNode]  = nodes.filter(_.gene == this.seedNode.gene)
 
   /**
-   * @return # of all seed descendant nodes (replicators) / all nodes
+   * @return # of all seed descendant replicators (replicators) / all replicators
    */
   def seedRatio() : Double = this.seedNodes().size.toDouble / this.nodes.size
 
@@ -53,7 +53,7 @@ class GwrTrial(val maxResource:Long,
   def isFinished:Boolean =  this.isFinishedFunc(this.nodes)
 
   /**
-   *  One turn where all the nodes given the opportunity to spawn descendants weighted by the relative ratio of their
+   *  One turn where all the replicators given the opportunity to spawn descendants weighted by the relative ratio of their
    *  gene.resourceAcquisitionFitness
    *
    *  @return true if is has a next turn, false it was the final turn for this trial
@@ -61,7 +61,7 @@ class GwrTrial(val maxResource:Long,
   override def nextTurn() : Boolean = {
     val sumOfResourceAcquisitionFitness = nodes.map(_.gene.resourceAcquisitionFitness).sum
     this.nodes = this.nodes
-      .flatMap(node=>node.cloneRandomly(maxResource/sumOfResourceAcquisitionFitness))
+      .flatMap(_.cloneRandomly(maxResource/sumOfResourceAcquisitionFitness))
     this._isSeedDominant = this.seedRatio() > this.dominantQualifier
     super.nextTurn()
   }

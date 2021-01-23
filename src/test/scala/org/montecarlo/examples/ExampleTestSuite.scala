@@ -2,14 +2,14 @@ package org.montecarlo.examples
 
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.functions.avg
-import org.montecarlo.examples.galtonwatson.{GwAnalyzer, GwInput, GwNode, GwOutput, GwTrial}
-import org.montecarlo.examples.gwr.{Gene, GwrAnalyzer, GwrInput, GwrNode, GwrOutput, GwrTrial}
+import org.montecarlo.Parameter.implicitConversions._
+import org.montecarlo.examples.gw._
+import org.montecarlo.examples.gwr._
 import org.montecarlo.examples.pi.{PiOutput, PiTrial}
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Analyzer, EmptyInput, Experiment, Input}
+import org.montecarlo.{Analyzer, Experiment, Input}
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
-import org.montecarlo.Parameter.implicitConversions._
 
 class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
 

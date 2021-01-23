@@ -1,4 +1,4 @@
-package org.montecarlo.examples.galtonwatson
+package org.montecarlo.examples.gw
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
@@ -17,7 +17,7 @@ class GwAnalyzer(val gwOutputDS:Dataset[GwOutput]) extends Analyzer {
   /**
    * Calculates the average population by Lambda and Turn. It only makes sense if each turn is captured
    * @param maxTurn the table will collect data up until this turn number
-   * @return DataFrame with the number of seed nodes, grouped by lambda and turn
+   * @return DataFrame with the number of seed replicators, grouped by lambda and turn
    */
   def averagePopulationByLambdaAndTime(maxTurn:Int =100 ): Dataset[Row] = {
 
@@ -32,7 +32,7 @@ class GwAnalyzer(val gwOutputDS:Dataset[GwOutput]) extends Analyzer {
       listOutput
     })
       .groupBy("lambda", "turn").agg(
-      avg($"nrOfSeedNodes").as("avgOfSeedNodes"))
+      avg($"nrOfSeedReplicators").as("avgOfSeedNodes"))
       .orderBy("lambda","turn")
   }
 
