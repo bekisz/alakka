@@ -1,4 +1,5 @@
 package org.montecarlo.examples.replicator
+import org.apache.spark.sql.SaveMode
 import org.montecarlo.Parameter.implicitConversions._
 import org.montecarlo.utils.Time.time
 import org.montecarlo.{Analyzer, Experiment, Input, Parameter}
@@ -18,8 +19,8 @@ import org.montecarlo.{Analyzer, Experiment, Input, Parameter}
  * @param totalResource Number of resource units available for all replicators. One resource unit maintains one node.
  */
 case class ReplicatorInput(
-                     seedResourceAcquisitionFitness:Parameter[Double] = Vector(1.0, 1.1, 1.2, 1.5, 2.0, 3.0),
-                     resilience:Parameter[Double] = Vector(0.0, 0.4, 0.8, 0.9, 0.99),
+                     seedResourceAcquisitionFitness:Parameter[Double] = Seq(1.0, 1.1, 1.2, 1.5, 2.0, 3.0),
+                     resilience:Parameter[Double] = Seq(0.0, 0.4, 0.8, 0.9, 0.99),
                      totalResource:Parameter[Long] = 100L
                    ) extends Input
 
@@ -53,17 +54,16 @@ object ReplicatorOutput {
 }
 
 /**
- *  Initiates our  resource limited
- *  <A HREF="https://en.wikipedia.org/wiki/Galton%E2%80%93Watson_process">Galton-Watson</A> Experiment
+ *  Initiates Replicator Experiment
  */
 object ReplicatorExperiment {
   def main(args : Array[String]): Unit = {
     time {
 
       val experiment = new Experiment[ReplicatorInput,ReplicatorTrial,ReplicatorOutput](
-        name = "Galton-Watson with Resources Experiment",
+        name = "Replicator Experiment",
         input = ReplicatorInput(),
-        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 2000,
+        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 20,
 
         trialBuilderFunction = trialInput => new ReplicatorTrial(
           maxResource = trialInput.totalResource,
@@ -92,7 +92,9 @@ object ReplicatorExperiment {
       val trials = analyzer.trials()
       println(s"\n$turns turns processed in $trials trials, averaging "
         + f"${turns.toDouble / trials}%1.1f turns per trial\n")
-
+      trialOutputDS.repartition(1)
+        .write.format("csv").option("header","true")
+        .mode(SaveMode.Overwrite).save("replicator.csv")
       experiment.spark.stop()
 
 

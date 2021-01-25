@@ -23,5 +23,5 @@ class Replicator(val gene:Gene)  extends Serializable  {
   }
   protected[this] def dieRandomly(): Option[Replicator]
   = if (Math.random < this.gene.resilience)  Some(this) else None
-  override def clone(): Replicator = new Replicator(this.gene)
+  override def clone(): Replicator = new Replicator(this.gene.clone().asInstanceOf[Gene])
 }
