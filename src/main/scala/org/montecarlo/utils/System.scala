@@ -1,7 +1,6 @@
 package org.montecarlo.utils
 
 object System {
-
   def classPathSources(cl: ClassLoader): Array[java.net.URL] = cl match {
     case null => Array()
     case u: java.net.URLClassLoader => u.getURLs() ++ classPathSources(cl.getParent)

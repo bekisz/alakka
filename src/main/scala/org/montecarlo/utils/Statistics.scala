@@ -18,7 +18,8 @@ object Statistics {
   /**
    * Generates a random number with Poisson distribution
    *
-   * Ref : https://stackoverflow.com/questions/1241555/algorithm-to-generate-poisson-and-binomial-random-numbers
+   * <A HREF="https://stackoverflow.com/questions/1241555/algorithm-to-generate-poisson-and-binomial-random-numbers">
+   *   Reference</A>
    *
    * @param lambda Lambda for Poisson distribution
    * @return
@@ -35,38 +36,29 @@ object Statistics {
     k-1
   }
 
-  def confidenceInterval(noOfSamples: Long, mean : Double, stdDev : Double, confidence: Double): (Double, Double) = {
+  /**
+   * Approximates the upper and lower bound of real mean within the given confidence level.
+   *
+   * Caveat : This algorithm approximates the binomiol distribution with Normal distribution.
+   * Low p (success) rate and low sample size can give false results.
+   * <A HREF="https://en.wikipedia.org/wiki/Binomial_distribution#Normal_approximation">More on this here</A>
+   *
+   * @param samples The number of <A HREF="https://en.wikipedia.org/wiki/Bernoulli_trial">Bernoulli Trials
+   * @param mean The average of the samples (vs. the real mean what we want to figure out)
+   * @param stdDev Standard deviation of the samples
+   * @param confidence the requited confidence level ( 1- alpha = signifincance level)
+   * @return Lower and upper bound that the true mean is between these values with the requested confidence level
+   */
+  def confidenceInterval(samples: Long, mean : Double, stdDev : Double, confidence: Double): (Double, Double) = {
 
     val alpha = 1 - confidence
 
     /* Student's distribution could be used all the turn because it converges
      * towards the normal distribution as n grows.
      */
-    if (noOfSamples < 30) {
-      (mean - qt(1 - alpha / 2, noOfSamples - 1) * stdDev / sqrt(noOfSamples), mean + qt(1 - alpha / 2, noOfSamples - 1) * stdDev / sqrt(noOfSamples))
-    } else {
-      (mean - qsnorm(1 - alpha / 2) * stdDev / sqrt(noOfSamples), mean + qsnorm(1 - alpha / 2) * stdDev / sqrt(noOfSamples))
-    }
-
+    val err =  if (samples < 30)
+      new TDistribution(samples - 1).inverseCumulativeProbability(1 - alpha / 2) * stdDev / sqrt(samples)
+    else  new NormalDistribution().inverseCumulativeProbability(1 - alpha / 2) * stdDev / sqrt(samples)
+    (mean - err, mean + err)
   }
-
-  /** Quantile function for the standard  (μ = 0, σ = 1)  normal distribution
-   */
-  private def qsnorm(p: Double): Double = {
-    new NormalDistribution().inverseCumulativeProbability(p)
-  }
-
-
-  /** Quantile function for the Student's t distribution
-   *  Let 0 < p < 1. The p-th quantile of the cumulative distribution function F(x) is defined as
-   *  x_p = inf{x : F(x) >= p}
-   *  For most of the continuous random variables, x_p is unique and is equal to x_p = F^(-1)(p), where
-   *  F^(-1) is the inverse function of F. Thus, x_p is the value for which Pr(X <= x_p) = p. In particular,
-   *  the 0.5-th quantile is called the median of F.
-   */
-  private def qt(p: Double, df: Double): Double = {
-    new TDistribution(df).inverseCumulativeProbability(p)
-  }
-
-
 }
