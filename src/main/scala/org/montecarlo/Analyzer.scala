@@ -8,22 +8,22 @@ import org.montecarlo.utils.{ConfidenceInterval, Statistics}
 import scala.collection.mutable.ArrayBuffer
 
 abstract class Analyzer {
-  protected val spark:SparkSession = this.getOutputDF().sparkSession
-  def getOutputDF() : DataFrame
+  protected val spark:SparkSession = this.getOutputDF.sparkSession
+  def getOutputDF : DataFrame
 
   /**
    * @return # of turns summed in the experiment
    */
   def turns() : Long = {
     import spark.implicits._
-    this.getOutputDF().filter($"isFinished" ).select(sum("turn")).first().getAs[Long](0)
+    this.getOutputDF.filter($"isFinished" ).select(sum("turn")).first().getAs[Long](0)
   }
   /**
    * @return # of trial executed
    */
   def trials() : Long = {
     import spark.implicits._
-    this.getOutputDF().filter($"isFinished" ).count()
+    this.getOutputDF.filter($"isFinished" ).count()
   }
 
 
@@ -32,7 +32,7 @@ object Analyzer {
   /**
    * Takes a [[RelationalGroupedDataset]], with  one of its columns with numeric values (valuesCol), as samples.
    * Then the mean is calculated with lower and upper bounds with the requested confidence level.
-   * @param groupedBy i.e. df.groupBy("waheteverCol")
+   * @param groupedBy i.e. df.groupBy("whateverCol")
    * @param valuesCol The name of the column with numeric values, the base of calculation
    * @param requestedConfidences the requested confidence levels. Each value produces a new row
    * @return
@@ -75,8 +75,8 @@ object Analyzer {
   def calculateConfidenceIntervals(df:DataFrame,
                                    confidenceLevels:Seq[Double]=Seq(0.99)): Dataset[ConfidenceInterval] = {
     import df.sparkSession.implicits._
-    if (df.columns.size != 1) throw  new IllegalArgumentException("Single column Dataframe expected."
-      + s"This dataframe has ${df.columns.size} columns. Use select to narrow.")
+    if (df.columns.length != 1) throw  new IllegalArgumentException("Single column Dataframe expected."
+      + s"This dataframe has ${df.columns.length} columns. Use select to narrow.")
 
     val colName = df.columns.head
 
@@ -106,5 +106,5 @@ object Analyzer {
    */
   def calculateConfidenceInterval(df:DataFrame,
                                   confidenceLevel:Double=0.99): ConfidenceInterval
-  = calculateConfidenceInterval(df, confidenceLevel)
+  = calculateConfidenceIntervals(df, Seq(confidenceLevel)).first()
 }
