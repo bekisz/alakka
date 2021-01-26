@@ -8,7 +8,7 @@ import org.montecarlo.examples.gwr._
 import org.montecarlo.examples.pi.{PiOutput, PiTrial}
 import org.montecarlo.examples.replicator.{Replicator, ReplicatorAnalyzer, ReplicatorInput, ReplicatorOutput, ReplicatorTrial, Gene => RGene}
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Analyzer, Experiment, Input, Parameter}
+import org.montecarlo.{Analyzer, Experiment, Input}
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -25,8 +25,8 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     time {
       val experiment = new Experiment[Input, PiTrial, PiOutput](
         name = "Estimation of Pi by Monte Carlo method",
-        monteCarloMultiplicity = 100000,
-        trialBuilderFunction = _ => new PiTrial(3),
+        monteCarloMultiplicity = 10000,
+        trialBuilderFunction = _ => new PiTrial(100),
         outputCollectorBuilderFunction = PiOutput(_),
         outputCollectorNeededFunction = _.turn() != 0,
         sparkConf = new SparkConf().setMaster("local[*]")
@@ -34,11 +34,12 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       import experiment.spark.implicits._
       val outputDS = experiment.run().toDS().cache()
       outputDS.show(10)
-      val pi = outputDS.select(avg($"isInCircle".cast("Integer"))).first().getAs[Double](0) * 4
-      println(s"Estimated Pi is $pi after ${outputDS.count()} results in ${experiment.monteCarloMultiplicity} trials.")
+      val myPi = outputDS.select(avg($"piValue").as("piValue")).as[PiOutput].first().piValue
+      println(s"Estimated Pi is $myPi after ${outputDS.count()} results in ${experiment.monteCarloMultiplicity} trials.")
 
-      //experiment.spark.stop()
-      assert(pi > 3.1 && pi < 3.2)
+      val five9Confidence = Analyzer.calculateConfidenceInterval(outputDS.toDF(), 0.99999)
+      // We let it fail when 99.999% confidence interval doesn't include the Math.PI
+      assert(five9Confidence.low < Math.PI  && Math.PI < five9Confidence.high)
     }
 
 
