@@ -1,5 +1,7 @@
 package org.montecarlo
 
+import org.apache.spark.sql.{DataFrame, RelationalGroupedDataset}
+
 /**
  * The super class of the fields within the Input subclasses.
  * It can hold one to many inner parameters.  Each inner parameter multiplies the the number of trials executed.
@@ -67,6 +69,7 @@ object Parameter {
     implicit def fromIndexedSeq[T](value:Seq[T]) :Parameter[T] = Parameter[T](value)
     implicit def fromT[T](t:T) : Parameter[T] = Parameter(t)
     implicit def toT[T](parameter:Parameter[T]) : T = parameter.head()
+
   }
 
 }

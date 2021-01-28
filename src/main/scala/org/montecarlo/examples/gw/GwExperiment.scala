@@ -71,7 +71,7 @@ object GwExperiment {
 
       println("Confidence Intervals for the survival probabilities")
       Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
-        .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
+        .toDF().withColumn("survivalChance", $"seedSurvivalChance".cast("Integer"))
         .groupBy("lambda"),
         "survivalChance",List(0.95,0.99,0.999)).orderBy("lambda").show()
 

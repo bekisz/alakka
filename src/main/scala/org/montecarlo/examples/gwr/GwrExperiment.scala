@@ -29,8 +29,8 @@ case class GwrInput(
  */
 
 case class GwrOutput(turn: Long,
-                     isSeedDominant: Boolean,
-                     resourceAcquisitionFitness: Double,
+                     seedSurvivalChance: Double,
+                     seedResourceAcquisitionFitness: Double,
                      isFinished: Boolean,
                      nrOfSeedNodes:Int,
                      trialUniqueId:String)
@@ -42,7 +42,7 @@ object GwrOutput {
    */
   def apply(t:GwrTrial):GwrOutput = new GwrOutput(
       t.turn(),
-      t.isSeedDominant,
+      if (t.isSeedDominant) 1.0 else 0.0,
       t.seedNode.gene.resourceAcquisitionFitness,
       t.isFinished,
       t.seedNodes().size,
@@ -61,7 +61,7 @@ object GwrExperiment {
       val experiment = new Experiment[GwrInput,GwrTrial,GwrOutput](
         name = "Galton-Watson with Resources Experiment",
         input = GwrInput(),
-        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 20000,
+        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 200,
 
         trialBuilderFunction = trialInput => new GwrTrial(
           maxResource = trialInput.totalResource,
@@ -74,15 +74,12 @@ object GwrExperiment {
       import experiment.spark.implicits._
       val trialOutputDS = experiment.run().toDS().cache()
       trialOutputDS.show(20)
-
       val analyzer = new GwrAnalyzer(trialOutputDS)
 
       println("Confidence Intervals for the survival probabilities")
-      Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
-        .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
-        .groupBy("resourceAcquisitionFitness" +
-          ""),
-        "survivalChance",List(0.95,0.99,0.999)).orderBy("resourceAcquisitionFitness").show()
+
+      Analyzer.calculateConfidenceIntervalsFromGroups(analyzer.groupBy(experiment.input),
+        "seedSurvivalChance",List(0.95,0.99,0.999)).orderBy("seedResourceAcquisitionFitness").show()
 
 
       //analyzer.expectedExtinctionTimesByLambda().show()

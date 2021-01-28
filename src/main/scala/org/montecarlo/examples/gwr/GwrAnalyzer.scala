@@ -13,10 +13,6 @@ class GwrAnalyzer(val gwrOutputDS:Dataset[GwrOutput]) extends Analyzer {
 
   override def getOutputDF() : DataFrame = this.gwrOutputDS.toDF()
 
-  /**
-   * Calculate the survival probabilities of seedReplicators within the given confidence interval grouped by
-   * resourceAcquisitionFitness (average number of descendant, the resourceAcquisitionFitness in a Poisson distribution)
-   */
 
   /**
    * Calculates the average population by Lambda and Turn. It only makes sense if each turn is captured
@@ -35,9 +31,9 @@ class GwrAnalyzer(val gwrOutputDS:Dataset[GwrOutput]) extends Analyzer {
       }
       listOutput
     })
-      .groupBy("resourceAcquisitionFitness", "turn").agg(
+      .groupBy("seedResourceAcquisitionFitness", "turn").agg(
       avg($"nrOfSeedReplicators").as("avgOfSeedNodes"))
-      .orderBy("resourceAcquisitionFitness","turn")
+      .orderBy("seedResourceAcquisitionFitness","turn")
   }
 
   /**
@@ -47,9 +43,9 @@ class GwrAnalyzer(val gwrOutputDS:Dataset[GwrOutput]) extends Analyzer {
    */
   def expectedExtinctionTimesByLambda(): Dataset[Row]= {
     import spark.implicits._
-    gwrOutputDS.filter(_.isFinished).filter(!_.isSeedDominant).groupBy("resourceAcquisitionFitness").agg(
+    gwrOutputDS.filter(_.isFinished).filter(_.seedSurvivalChance>0.9999).groupBy("seedResourceAcquisitionFitness").agg(
       avg($"turn").as("extinctionTime"))
-      .orderBy("resourceAcquisitionFitness")
+      .orderBy("seedResourceAcquisitionFitness")
   }
 
 }

@@ -34,6 +34,39 @@ trait Input extends HasMultiplicity {
   }
 
   /**
+   * Fetches all the parameter names that has a multiplicity higher than 1 (=dimensions) .
+   * This can be a convenient method to anticipate the "groupBy" column names
+   *
+   * @return paramaters names
+   */
+  def fetchDimensions() : Seq[String] = {
+    val fields = this.getClass.getDeclaredFields
+    if (fields.nonEmpty) {
+     fields.map(paramField => {
+        paramField.setAccessible(true)
+        (paramField.getName, paramField.get(this))
+      }).collect {
+          case (s:String, p: ParameterBase ) if p.multiplicity() > 1 => s
+        }
+
+    } else List[String]()
+
+  }
+
+  /**
+   * Creates a Map from (field name, BaseParameter)
+   * @return
+   */
+  def fetchParameterMap() :Map[String, ParameterBase] = {
+    val fields = this.getClass.getDeclaredFields
+    fields.map(paramField => {
+      paramField.setAccessible(true)
+      (paramField.getName, paramField.get(this))
+    }).collect {
+      case (s:String, p: ParameterBase ) => (s->p)
+    }.toMap
+  }
+  /**
    * Uses reflection to fetch all the fields within this instance,
    * that are subtype of ParameterBase
     * @return

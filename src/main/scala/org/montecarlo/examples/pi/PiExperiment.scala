@@ -7,6 +7,8 @@ import scala.math.random
  * Picks maxTurns random points in a 2x2 box centered in the origin.
  * If the random point is within 1 unit of distance from origin it sets piValue to 4 otherwise to 0.
  * The average of piValue will provide the estimation of Pi.
+ * Rationale : The area of the 2x2 box is 4, the area of the 1 unit radius circle is 1*1*Pi = Pi. =>
+ * So Pi/4 == P(inCircle)/1
  *
  * @param maxTurns Number of turns where in each turn a random point is generated
  */

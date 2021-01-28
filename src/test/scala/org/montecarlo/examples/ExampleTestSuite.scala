@@ -111,9 +111,8 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
 
     println("Confidence Intervals for the survival probabilities")
     Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
-      .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
-      .groupBy("resourceAcquisitionFitness"),
-      "survivalChance", List(0.95, 0.99, 0.999)).orderBy("resourceAcquisitionFitness").show()
+      .toDF().groupBy("seedResourceAcquisitionFitness"),
+      "seedSurvivalChance", List(0.95, 0.99, 0.999)).orderBy("seedResourceAcquisitionFitness").show()
 
     val turns = analyzer.turns()
     val trials = analyzer.trials()

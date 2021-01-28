@@ -83,7 +83,7 @@ object ReplicatorExperiment {
 
       println("Confidence Intervals for the survival probabilities")
       Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
-        .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
+        .toDF().withColumn("survivalChance", $"seedSurvivalChance".cast("Integer"))
         .groupBy("resourceAcquisitionFitness", "resilience"),
         "survivalChance",List(0.99))
         .orderBy("resourceAcquisitionFitness","resilience").show(100)

@@ -25,8 +25,17 @@ abstract class Analyzer {
     import spark.implicits._
     this.getOutputDF.filter($"isFinished" ).count()
   }
+  def isOutputColumnsMatchInput(input:Input) : Boolean
+    = input.fetchDimensions().map{this.getOutputDF.columns.contains(_)}.reduce(_&_)
 
-
+  def groupBy(input:Input) : RelationalGroupedDataset = {
+    val dimensions = input.fetchDimensions()
+    if (this.isOutputColumnsMatchInput(input) && dimensions.nonEmpty) {
+      if (dimensions.length == 1) this.getOutputDF.groupBy(dimensions.head)
+      this.getOutputDF.groupBy(dimensions.head, dimensions.tail: _*)
+    } else throw new IllegalArgumentException("Input dimensions (" + input.fetchDimensions().mkString(", ")
+      + ") mismatches output columns (" + this.getOutputDF.columns.mkString(", ") + ")")
+  }
 }
 object Analyzer {
   /**
