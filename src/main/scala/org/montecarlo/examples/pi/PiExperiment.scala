@@ -1,6 +1,8 @@
 package org.montecarlo.examples.pi
 import org.apache.spark.sql.functions.avg
-import org.montecarlo.{Analyzer, EmptyInput, Experiment, Trial}
+import org.montecarlo.Implicits._
+import org.montecarlo.{EmptyInput, Experiment, Trial}
+
 import scala.math.random
 
 /**
@@ -49,11 +51,12 @@ object PiExperiment {
     val outputDS = experiment.run().toDS().cache()
     outputDS.show(10)
     val myPi = outputDS.select(avg($"piValue").as("piValue")).as[PiOutput].first().piValue
-    val myPiFive9ConfidenceInterval = Analyzer.calculateConfidenceInterval(outputDS.toDF(),0.99999)
+    val myPiCI = outputDS.toDF().calculateConfidenceInterval(0.9999)
 
-    println(s"The estimated Pi is $myPi. The real Pi must be between ${myPiFive9ConfidenceInterval.low}"
-      + s"and ${myPiFive9ConfidenceInterval.high} with 99.999% confidence level.")
-    println(s"Run ${experiment.monteCarloMultiplicity} trials yielding ${outputDS.count()} output results.")
+    println(s"The empirical Pi is $myPi +/-${myPi-myPiCI.low}"
+      + s" with ${myPiCI.confidence*100}% confidence level.")
+    println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${outputDS.count()} output results.")
+
     experiment.spark.stop()
   }
 }

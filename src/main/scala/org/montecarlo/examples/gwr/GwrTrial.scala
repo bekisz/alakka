@@ -7,7 +7,7 @@ import org.montecarlo.Trial
 /**
  * One trial in a modified  <A HREF="https://en.wikipedia.org/wiki/Galton%E2%80%93Watson_process">Galton-Watson</A>
  * experiment where the Nodes have Resource Limits and they replicate with the relative weight of the their
- * resourceAcquisitionFitness (similar to lambda in the original experiment)
+ * seedResourceAcquisitionFitness (similar to lambda in the original experiment)
  *
  *
  * @param maxResource Dealing with exponential growth while not having unlimited memory and time forces us to
@@ -54,7 +54,7 @@ class GwrTrial(val maxResource:Long,
 
   /**
    *  One turn where all the replicators given the opportunity to spawn descendants weighted by the relative ratio of their
-   *  gene.resourceAcquisitionFitness
+   *  gene.seedResourceAcquisitionFitness
    *
    *  @return true if is has a next turn, false it was the final turn for this trial
    */

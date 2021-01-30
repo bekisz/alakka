@@ -1,12 +1,12 @@
 package org.montecarlo.examples.gwr
 
-import org.montecarlo.Parameter.implicitConversions._
+import org.montecarlo.Implicits._
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Analyzer, Experiment, Input, Parameter}
+import org.montecarlo.{Experiment, Input, Parameter}
 
 /**
  * Input to our  <A HREF="https://en.wikipedia.org/wiki/Galton%E2%80%93Watson_process">Galton-Watson</A> Experiment.
- * Experiment runs all the combinations of these resourceAcquisitionFitness and totalResource variations.
+ * Experiment runs all the combinations of these seedResourceAcquisitionFitness and totalResource variations.
  * All fields should have type of Parameter[T]. These parameters can be initialized with a Seq of T object or
  * with the help implicit conversions with T instances directly.
  *
@@ -78,8 +78,8 @@ object GwrExperiment {
 
       println("Confidence Intervals for the survival probabilities")
 
-      Analyzer.calculateConfidenceIntervalsFromGroups(analyzer.groupBy(experiment.input),
-        "seedSurvivalChance",List(0.95,0.99,0.999)).orderBy("seedResourceAcquisitionFitness").show()
+      trialOutputDS.toDF().groupBy(experiment.input).calculateConfidenceIntervals(
+        "seedSurvivalChance",List(0.95,0.99,0.999)).orderBy(experiment.input).show()
 
 
       //analyzer.expectedExtinctionTimesByLambda().show()

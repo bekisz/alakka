@@ -1,15 +1,15 @@
 package org.montecarlo.examples.gw
-import org.montecarlo.Parameter.implicitConversions._
+import org.montecarlo.Implicits._
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Analyzer, Experiment, Input, Parameter}
+import org.montecarlo.{Experiment, Input, Parameter}
 
 /**
  * Input to our  <A HREF="https://en.wikipedia.org/wiki/Galton%E2%80%93Watson_process">Galton-Watson</A> Experiment.
- * Experiment runs all the combinations of these resourceAcquisitionFitness and totalResource variations. All fields should have type of
+ * Experiment runs all the combinations of these seedResourceAcquisitionFitness and totalResource variations. All fields should have type of
  * Paramater[T]. These parameters can be initialized with a Seq of T object or with the help implicit conversions with
  * T instances directly. These will be converted as a Seq with one element
  *
- * @param lambda The resourceAcquisitionFitness of the Poisson distribution for the random generation of children replicators. It is also the
+ * @param lambda The seedResourceAcquisitionFitness of the Poisson distribution for the random generation of children replicators. It is also the
  *               expected number of children of the seed replicators and its descendants
  * @param maxPopulation The theoretical work of Galton-Watson is limitless, and the seed node population grows
  *                      exponentially. For simulation though, it is necessary to define cut off point where we
@@ -26,7 +26,7 @@ case class GwInput(
  */
 
 case class GwOutput(turn: Long,
-                    isSeedDominant: Boolean,
+                    seedSurvivalChance: Double,
                     lambda: Double,
                     isFinished: Boolean,
                     nrOfSeedNodes:Int,
@@ -34,7 +34,7 @@ case class GwOutput(turn: Long,
 object GwOutput {
   def apply(t:GwTrial):GwOutput = new GwOutput(
       t.turn(),
-      t.isSeedDominant,
+      if (t.isSeedDominant) 1.0 else 0.0,
       t.seedNode.lambdaForPoisson,
       t.isFinished,
       t.livingNodes.size,
@@ -70,10 +70,8 @@ object GwExperiment {
       analyzer.averagePopulationByLambdaAndTime(10).show(100)
 
       println("Confidence Intervals for the survival probabilities")
-      Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
-        .toDF().withColumn("survivalChance", $"seedSurvivalChance".cast("Integer"))
-        .groupBy("lambda"),
-        "survivalChance",List(0.95,0.99,0.999)).orderBy("lambda").show()
+      trialOutputDS.toDF().groupBy(experiment.input).calculateConfidenceIntervals(
+        "seedSurvivalChance",List(0.95,0.99,0.999)).orderBy(experiment.input).show()
 
       val turns = analyzer.turns()
       val trials = analyzer.trials()

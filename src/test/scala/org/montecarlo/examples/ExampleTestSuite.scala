@@ -2,13 +2,13 @@ package org.montecarlo.examples
 
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.functions.avg
-import org.montecarlo.Parameter.implicitConversions._
+import org.montecarlo.Implicits._
 import org.montecarlo.examples.gw._
 import org.montecarlo.examples.gwr._
 import org.montecarlo.examples.pi.{PiOutput, PiTrial}
 import org.montecarlo.examples.replicator.{Replicator, ReplicatorAnalyzer, ReplicatorInput, ReplicatorOutput, ReplicatorTrial, Gene => RGene}
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Analyzer, Experiment, Input}
+import org.montecarlo.{Experiment, Input}
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -35,11 +35,13 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       val outputDS = experiment.run().toDS().cache()
       outputDS.show(10)
       val myPi = outputDS.select(avg($"piValue").as("piValue")).as[PiOutput].first().piValue
-      println(s"Estimated Pi is $myPi after ${outputDS.count()} results in ${experiment.monteCarloMultiplicity} trials.")
+      val myPiCI = outputDS.toDF().calculateConfidenceInterval( 0.99999)
+      println(s"The empirical Pi is $myPi +/-${myPi-myPiCI.low}"
+        + s" with ${myPiCI.confidence*100}% confidence level.")
+      println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${outputDS.count()} output results.")
 
-      val five9Confidence = Analyzer.calculateConfidenceInterval(outputDS.toDF(), 0.99999)
       // We let it fail when 99.999% confidence interval doesn't include the Math.PI
-      assert(five9Confidence.low < Math.PI  && Math.PI < five9Confidence.high)
+      assert(myPiCI.low < Math.PI  && Math.PI < myPiCI.high)
     }
 
 
@@ -69,11 +71,9 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     val analyzer = new GwAnalyzer(trialOutputDS)
 
     println("Confidence Intervals for the survival probabilities")
-    Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
-      .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
-      .groupBy("lambda"),
-      "survivalChance", List(0.95, 0.99, 0.999)).orderBy("lambda").show()
-
+    trialOutputDS.toDF()
+      .groupBy(experiment.input).calculateConfidenceIntervals(
+      "seedSurvivalChance",List(0.95,0.99,0.999)).orderBy(experiment.input).show()
 
     analyzer.expectedExtinctionTimesByLambda().show()
     val turns = analyzer.turns()
@@ -110,9 +110,8 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     val analyzer = new GwrAnalyzer(trialOutputDS)
 
     println("Confidence Intervals for the survival probabilities")
-    Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
-      .toDF().groupBy("seedResourceAcquisitionFitness"),
-      "seedSurvivalChance", List(0.95, 0.99, 0.999)).orderBy("seedResourceAcquisitionFitness").show()
+    trialOutputDS.toDF().groupBy(experiment.input).calculateConfidenceIntervals(
+      "seedSurvivalChance", List(0.95, 0.99, 0.999)).orderBy(experiment.input).show()
 
     val turns = analyzer.turns()
     val trials = analyzer.trials()
@@ -149,11 +148,10 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     val analyzer = new ReplicatorAnalyzer(trialOutputDS)
 
     println("Confidence Intervals for the survival probabilities")
-    Analyzer.calculateConfidenceIntervalsFromGroups(trialOutputDS
-      .toDF().withColumn("survivalChance", $"isSeedDominant".cast("Integer"))
-      .groupBy("resourceAcquisitionFitness", "resilience"),
-      "survivalChance",List(0.99))
-      .orderBy("resourceAcquisitionFitness","resilience").show(100)
+    trialOutputDS.toDF()
+      .groupBy(experiment.input).calculateConfidenceIntervals(
+      "seedSurvivalChance",List(0.99))
+      .orderBy(experiment.input).show(100)
 
     val turns = analyzer.turns()
     val trials = analyzer.trials()

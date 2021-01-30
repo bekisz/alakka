@@ -2,7 +2,7 @@ package org.montecarlo.examples.gw
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-import org.montecarlo.Analyzer
+import org.montecarlo.MvDataFrame
 
 
 /**
@@ -10,9 +10,7 @@ import org.montecarlo.Analyzer
  *
  * @param gwOutputDS The output Dataset of the Galton-Watson experiment
  */
-class GwAnalyzer(val gwOutputDS:Dataset[GwOutput]) extends Analyzer {
-
-  override def getOutputDF() : DataFrame = this.gwOutputDS.toDF()
+class GwAnalyzer(val gwOutputDS:Dataset[GwOutput]) extends MvDataFrame(gwOutputDS.toDF()) {
 
   /**
    * Calculates the average population by Lambda and Turn. It only makes sense if each turn is captured
@@ -32,7 +30,7 @@ class GwAnalyzer(val gwOutputDS:Dataset[GwOutput]) extends Analyzer {
       listOutput
     })
       .groupBy("lambda", "turn").agg(
-      avg($"nrOfSeedReplicators").as("avgOfSeedNodes"))
+      avg($"nrOfSeedNodes").as("avgOfSeedNodes"))
       .orderBy("lambda","turn")
   }
 
@@ -43,7 +41,7 @@ class GwAnalyzer(val gwOutputDS:Dataset[GwOutput]) extends Analyzer {
    */
   def expectedExtinctionTimesByLambda(): Dataset[Row]= {
     import spark.implicits._
-    gwOutputDS.filter($"isFinished" ).filter(!_.isSeedDominant).groupBy("lambda").agg(
+    gwOutputDS.filter($"isFinished" ).filter(_.seedSurvivalChance<0.01).groupBy("lambda").agg(
       avg($"turn").as("extinctionTime"))
       .orderBy("lambda")
   }
