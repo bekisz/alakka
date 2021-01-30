@@ -1,4 +1,5 @@
 package org.montecarlo.examples.pi
+
 import org.apache.spark.sql.functions.avg
 import org.montecarlo.Implicits._
 import org.montecarlo.{EmptyInput, Experiment, Trial}
@@ -15,8 +16,10 @@ import scala.math.random
  * @param maxTurns Number of turns where in each turn a random point is generated
  */
 class PiTrial(val maxTurns: Int = 1) extends Trial with Serializable {
-  def isFinished: Boolean = turn() >= this.maxTurns
   var piValue = 0.0
+
+  def isFinished: Boolean = turn() >= this.maxTurns
+
   /**
    * Picks one random point in a 2x2 box centered in the origin.
    * If the random point is within 1 unit of distance from origin it sets _isInCircle to true.
@@ -29,7 +32,9 @@ class PiTrial(val maxTurns: Int = 1) extends Trial with Serializable {
     super.nextTurn()
   }
 }
+
 case class PiOutput(piValue: Double)
+
 object PiOutput {
   def apply(t: PiTrial): PiOutput = new PiOutput(t.piValue)
 }
@@ -40,9 +45,10 @@ object PiOutput {
  */
 object PiExperiment {
   def main(args: Array[String]): Unit = {
+
     val experiment = new Experiment[EmptyInput, PiTrial, PiOutput](
       name = "Estimation of Pi by the Monte Carlo method",
-      monteCarloMultiplicity = if (args.length > 0) args(0).toInt else 1000,
+      monteCarloMultiplicity = if (args.length > 0) args(0).toInt else 1000000,
       trialBuilderFunction = _ => new PiTrial(2000),
       outputCollectorBuilderFunction = PiOutput(_),
       outputCollectorNeededFunction = _.turn() != 0 // we don't need initial pre-run trial outputs
@@ -51,12 +57,13 @@ object PiExperiment {
     val outputDS = experiment.run().toDS().cache()
     outputDS.show(10)
     val myPi = outputDS.select(avg($"piValue").as("piValue")).as[PiOutput].first().piValue
+
+
     val myPiCI = outputDS.toDF().calculateConfidenceInterval(0.9999)
-
-    println(s"The empirical Pi is $myPi +/-${myPi-myPiCI.low}"
-      + s" with ${myPiCI.confidence*100}% confidence level.")
+    println(s"The empirical Pi is $myPi +/-${myPi - myPiCI.low}"
+      + s" with ${myPiCI.confidence * 100}% confidence level.")
     println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${outputDS.count()} output results.")
-
     experiment.spark.stop()
   }
+
 }

@@ -16,48 +16,37 @@ import scala.reflect.ClassTag
  * a trial. Data is collected by default by the end of each trial run,  but can be done more frequently (up until
  * turn-by-turn) by changing the outputCollectorNeededFunction
  *
- * @param name The name of the experiment that is got propagated to SparkSession, in case that one is newly created
- * @param input The range of variables for the trials that are executed. Each value will executed by
- *              monteCarloMultiplicity times
- * @param monteCarloMultiplicity The number of trials executed for each potential input variation
- * @param trialBuilderFunction  This the function experiment uses to construct the new trial
+ * @param name                           The name of the experiment that is got propagated to SparkSession, in case that one is newly created
+ * @param input                          The range of variables for the trials that are executed. Each value will executed by
+ *                                       monteCarloMultiplicity times
+ * @param monteCarloMultiplicity         The number of trials executed for each potential input variation
+ * @param trialBuilderFunction           This the function experiment uses to construct the new trial
  * @param outputCollectorBuilderFunction The function that creates the output collector, the OutputType is the
  *                                       the class that is used in a Dataset or Dataframe later on so its field will
  *                                       act like table columns
- * @param outputCollectorNeededFunction Technically it is possible to take a new OutputType instance after
- *                                                every turn, but that my be just an overkill. If this function is
- *                                                _.isFinished then data will be collected at the end of the trial runs
- *                                                only. If it is (trial=>trial.turn()%10==0 || trial.isFinished)  then...
+ * @param outputCollectorNeededFunction  Technically it is possible to take a new OutputType instance after
+ *                                       every turn, but that my be just an overkill. If this function is
+ *                                       _.isFinished then data will be collected at the end of the trial runs
+ *                                       only. If it is (trial=>trial.turn()%10==0 || trial.isFinished)  then...
  */
-class Experiment[InputType<:Input:ClassTag,
-  TrialType<:Trial:ClassTag, OutputType:ClassTag](val name:String,
-                                                  val input: InputType = EmptyInput(),
-                                                  val monteCarloMultiplicity:Int = 1000,
-                                                  val trialBuilderFunction : InputType => TrialType,
-                                                  val outputCollectorBuilderFunction : TrialType => OutputType,
-                                                  val outputCollectorNeededFunction  : TrialType => Boolean,
-                                                  val sparkConf: SparkConf = new SparkConf()
+class Experiment[InputType <: Input : ClassTag,
+  TrialType <: Trial : ClassTag, OutputType: ClassTag](val name: String,
+                                                       val input: InputType = EmptyInput(),
+                                                       val monteCarloMultiplicity: Int = 1000,
+                                                       val trialBuilderFunction: InputType => TrialType,
+                                                       val outputCollectorBuilderFunction: TrialType => OutputType,
+                                                       val outputCollectorNeededFunction: TrialType => Boolean,
+                                                       val sparkConf: SparkConf = new SparkConf()
 
-) extends Serializable with HasMultiplicity {
+                                                      ) extends Serializable with HasMultiplicity {
 
 
   val spark: SparkSession = SparkSession.builder.config(sparkConf).appName(name).getOrCreate()
-
-  /**
-   * @return the number of Trial runs = input multiplicity x Monte-Carlo multiplicity
-   */
-  override def multiplicity(): Int = this.input.multiplicity() * this.monteCarloMultiplicity
-  override def toString:String =
-    s"${this.name} with (" +
-    s"${this.input.fetchParameters().map(_.multiplicity()).mkString("x")}) x" +
-    s" ${this.monteCarloMultiplicity} = ${this.multiplicity()}" +
-    s" trials on Spark ${this.spark.sparkContext.version}"
-
-  protected def welcomeMessage():Unit = println(s"Running ${this.toString()} ...")
-
+  this.spark.udf.register("error", new ErrorUDAF)
   /**
    * Explodes the initial single instance of InputType to feeds them to the Trials created by trialBuilderFunction.
    * Then runs them parallel while collecting the trial output data with the help of OutputType
+   *
    * @return the result of the experiment
    */
   def run(): RDD[OutputType] = {
@@ -65,20 +54,33 @@ class Experiment[InputType<:Input:ClassTag,
     this.welcomeMessage()
     spark.sparkContext
       .parallelize(this.input.createInputPermutations().asInstanceOf[Seq[InputType]])
-      .flatMap( in => List.fill(this.monteCarloMultiplicity)(in))
-      .flatMap (input => {
+      .flatMap(in => List.fill(this.monteCarloMultiplicity)(in))
+      .flatMap(input => {
         val trial = this.trialBuilderFunction(input)
         var outputList = List[OutputType]()
         do {
           if (this.outputCollectorNeededFunction(trial))
             outputList = this.outputCollectorBuilderFunction(trial) :: outputList
         } while (trial.nextTurn())
-          if (this.outputCollectorNeededFunction(trial))
+        if (this.outputCollectorNeededFunction(trial))
           outputList = this.outputCollectorBuilderFunction(trial) :: outputList
 
         outputList.reverse
-    })
+      })
   }
+
+  protected def welcomeMessage(): Unit = println(s"Running ${this.toString()} ...")
+
+  override def toString: String =
+    s"${this.name} with (" +
+      s"${this.input.fetchParameters().map(_.multiplicity()).mkString("x")}) x" +
+      s" ${this.monteCarloMultiplicity} = ${this.multiplicity()}" +
+      s" trials on Spark ${this.spark.sparkContext.version}"
+
+  /**
+   * @return the number of Trial runs = input multiplicity x Monte-Carlo multiplicity
+   */
+  override def multiplicity(): Int = this.input.multiplicity() * this.monteCarloMultiplicity
 
 }
 
