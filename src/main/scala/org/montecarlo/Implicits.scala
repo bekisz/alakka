@@ -25,4 +25,8 @@ object Implicits {
     = new MvRelationalGroupedDataset(rgds)
   implicit def fromMvRelationalGroupedDataset(mvRgds:MvRelationalGroupedDataset) :RelationalGroupedDataset
     = mvRgds.rgds
+
+  implicit class StringToBigDecimal(val s: String) {
+    def toBD() :BigDecimal = BigDecimal(s)
+  }
 }

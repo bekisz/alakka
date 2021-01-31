@@ -92,7 +92,7 @@ object ReplicatorExperiment {
         + f"${turns.toDouble / trials}%1.1f turns per trial\n")
       trialOutputDS.repartition(1)
         .write.format("csv").option("header","true")
-        .mode(SaveMode.Overwrite).save("replicator.csv")
+        .mode(SaveMode.Overwrite).save("output/replicator.csv")
       experiment.spark.stop()
 
 

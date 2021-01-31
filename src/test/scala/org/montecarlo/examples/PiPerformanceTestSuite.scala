@@ -23,7 +23,7 @@ class PiPerformanceTestSuite extends AnyFunSuite with BeforeAndAfter {
   val piMaxTurns:Long = 1
   val testSparkConf = new SparkConf().setMaster("local[*]")
 
-  test("Classic Spark Way - Pi Approximation") {
+  ignore("Classic Spark Way - Pi Approximation") {
     time {
       println("Pi Approximation by the classic Spark way")
       val spark = SparkSession
@@ -43,12 +43,12 @@ class PiPerformanceTestSuite extends AnyFunSuite with BeforeAndAfter {
     }
   }
 
-  test("With Avg, Count Only - Pi Approximation") {
+  ignore("With Avg, Count Only - Pi Approximation") {
     time {
       val experiment = new Experiment[Input, PiTrial, PiOutput](
         name = "Estimation of Pi by Monte Carlo method",
         monteCarloMultiplicity = piMultiplicity,
-        trialBuilderFunction = _ => new PiTrial(),
+        trialBuilderFunction = _ => new PiTrial(1000),
         outputCollectorBuilderFunction = PiOutput(_),
         outputCollectorNeededFunction = _.turn() != 0,
         sparkConf = testSparkConf
@@ -72,14 +72,14 @@ class PiPerformanceTestSuite extends AnyFunSuite with BeforeAndAfter {
       val experiment = new Experiment[Input, PiTrial, PiOutput](
         name = "Estimation of Pi by Monte Carlo method with User Defined Aggregation Function",
         monteCarloMultiplicity = piMultiplicity,
-        trialBuilderFunction = _ => new PiTrial(),
+        trialBuilderFunction = _ => new PiTrial(1000),
         outputCollectorBuilderFunction = PiOutput(_),
         outputCollectorNeededFunction = _.turn() != 0,
         sparkConf = testSparkConf
       )
 
 
-      val conf = 0.95
+      val conf = 0.9999
       import experiment.spark.implicits._
 
       experiment.run().toDS().createTempView("PiOutputTable")
@@ -95,7 +95,7 @@ class PiPerformanceTestSuite extends AnyFunSuite with BeforeAndAfter {
       experiment.spark.stop()
     }
   }
-  test("With 'calculateConfidenceInterval' - Pi Approximation") {
+  ignore("With 'calculateConfidenceInterval' - Pi Approximation") {
     time {
       val experiment = new Experiment[Input, PiTrial, PiOutput](
         name = "Approximation of Pi by Monte Carlo method",

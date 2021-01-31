@@ -9,5 +9,5 @@ target/
 
 .metals
 .bloop
-
-replicator.csv/
+/src/main/.ipynb_checkpoints/
+/output/
