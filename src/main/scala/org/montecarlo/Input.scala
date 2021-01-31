@@ -92,7 +92,7 @@ trait Input extends HasMultiplicity {
    *
    * @return the multiplicity
    */
-  override def multiplicity(): Int =  this.fetchParameters().map(_.multiplicity()).product
+  override def multiplicity(): Long =  this.fetchParameters().map(_.multiplicity()).product
 
   /**
    * Creates a new instance of "this" type via reflection

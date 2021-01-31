@@ -1,7 +1,5 @@
 package org.montecarlo
 
-import org.apache.spark.sql.{DataFrame, RelationalGroupedDataset}
-
 /**
  * The super class of the fields within the Input subclasses.
  * It can hold one to many inner parameters.  Each inner parameter multiplies the the number of trials executed.
@@ -15,7 +13,7 @@ abstract class ParameterBase extends HasMultiplicity {
   /**
    * @return the number of inner parameters
    */
-  override def multiplicity():Int
+  override def multiplicity():Long
 
 }
 /**
@@ -42,7 +40,7 @@ case class Parameter[T](elements:Seq[T]) extends ParameterBase {
   /**
    * @return the number of inner parameters
    */
-  override def multiplicity():Int = this.elements.size
+  override def multiplicity():Long = this.elements.size
 
   /**
    * @return Takes all inner parameters and converts to be be standalone Parameters

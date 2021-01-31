@@ -59,7 +59,7 @@ class MvDataFrame(val df : DataFrame)  {
         val (mean,stdDev, count ) = (row.getAs[Double](0), row.getAs[Double](1), row.getAs[Long](2))
         confidenceLevels.map { conf =>
           val (low, high) = Statistics.confidenceInterval(count, mean, stdDev, conf)
-          ConfidenceInterval(mean, low, high, conf)
+          ConfidenceInterval(mean, low, high, conf,count)
         }
     }
   }

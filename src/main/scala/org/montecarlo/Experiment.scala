@@ -32,7 +32,7 @@ import scala.reflect.ClassTag
 class Experiment[InputType <: Input : ClassTag,
   TrialType <: Trial : ClassTag, OutputType: ClassTag](val name: String,
                                                        val input: InputType = EmptyInput(),
-                                                       val monteCarloMultiplicity: Int = 1000,
+                                                       val monteCarloMultiplicity: Long = 1000,
                                                        val trialBuilderFunction: InputType => TrialType,
                                                        val outputCollectorBuilderFunction: TrialType => OutputType,
                                                        val outputCollectorNeededFunction: TrialType => Boolean,
@@ -43,6 +43,7 @@ class Experiment[InputType <: Input : ClassTag,
 
   val spark: SparkSession = SparkSession.builder.config(sparkConf).appName(name).getOrCreate()
   this.spark.udf.register("error", new ErrorUDAF)
+
   /**
    * Explodes the initial single instance of InputType to feeds them to the Trials created by trialBuilderFunction.
    * Then runs them parallel while collecting the trial output data with the help of OutputType
@@ -52,10 +53,11 @@ class Experiment[InputType <: Input : ClassTag,
   def run(): RDD[OutputType] = {
 
     this.welcomeMessage()
+    val trialInputs = this.input.createInputPermutations().asInstanceOf[Seq[InputType]]
+    //val trialInputDS = spark.sparkContext.parallelize(trialInputs)
     spark.sparkContext
-      .parallelize(this.input.createInputPermutations().asInstanceOf[Seq[InputType]])
-      .flatMap(in => List.fill(this.monteCarloMultiplicity)(in))
-      .flatMap(input => {
+      .parallelize(1L to monteCarloMultiplicity).flatMap(_ => trialInputs)
+      .flatMap{  input => {
         val trial = this.trialBuilderFunction(input)
         var outputList = List[OutputType]()
         do {
@@ -66,7 +68,7 @@ class Experiment[InputType <: Input : ClassTag,
           outputList = this.outputCollectorBuilderFunction(trial) :: outputList
 
         outputList.reverse
-      })
+      }}
   }
 
   protected def welcomeMessage(): Unit = println(s"Running ${this.toString()} ...")
@@ -80,7 +82,7 @@ class Experiment[InputType <: Input : ClassTag,
   /**
    * @return the number of Trial runs = input multiplicity x Monte-Carlo multiplicity
    */
-  override def multiplicity(): Int = this.input.multiplicity() * this.monteCarloMultiplicity
+  override def multiplicity(): Long = this.input.multiplicity() * this.monteCarloMultiplicity
 
 }
 

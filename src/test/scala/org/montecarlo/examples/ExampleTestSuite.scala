@@ -1,11 +1,10 @@
 package org.montecarlo.examples
 
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.functions.avg
 import org.montecarlo.Implicits._
 import org.montecarlo.examples.gw._
 import org.montecarlo.examples.gwr._
-import org.montecarlo.examples.pi.{PiOutput, PiTrial}
+import org.montecarlo.examples.pi.{AggrPiOutput, PiOutput, PiTrial}
 import org.montecarlo.examples.replicator.{Replicator, ReplicatorAnalyzer, ReplicatorInput, ReplicatorOutput, ReplicatorTrial, Gene => RGene}
 import org.montecarlo.utils.Time.time
 import org.montecarlo.{Experiment, Input}
@@ -13,7 +12,7 @@ import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
 
 class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
-
+  val testSparkConf = new SparkConf().setMaster("local[*]")
   before {
 
   }
@@ -21,56 +20,55 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
 
   }
 
-  test("Pi Estimation Experiment") {
+  test("Pi Approximation with calculateConfidenceInterval") {
     time {
       val experiment = new Experiment[Input, PiTrial, PiOutput](
-        name = "Estimation of Pi by Monte Carlo method",
+        name = "Pi Approximation with calculateConfidenceInterval",
         monteCarloMultiplicity = 10000,
         trialBuilderFunction = _ => new PiTrial(1000),
         outputCollectorBuilderFunction = PiOutput(_),
         outputCollectorNeededFunction = _.turn() != 0,
-        sparkConf = new SparkConf().setMaster("local[*]")
+        sparkConf = testSparkConf
       )
       import experiment.spark.implicits._
-      val outputDS = experiment.run().toDS().cache()
-      outputDS.show(10)
-      val myPi = outputDS.select(avg($"piValue").as("piValue")).as[PiOutput].first().piValue
-      val myPiCI = outputDS.toDF().calculateConfidenceInterval(0.99999)
-      println(s"The empirical Pi is $myPi +/-${myPi - myPiCI.low}"
+      val myPiCI = experiment.run().toDF().calculateConfidenceInterval(0.99999)
+      println(s"The empirical Pi is ${myPiCI.mean} +/-${myPiCI.mean - myPiCI.low}"
         + s" with ${myPiCI.confidence * 100}% confidence level.")
-      println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${outputDS.count()} output results.")
+      println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${myPiCI.sampleCount} output results.")
 
       // We let it fail when 99.999% confidence interval doesn't include the Math.PI
       assert(myPiCI.low < Math.PI && Math.PI < myPiCI.high)
+      experiment.spark.stop()
+
     }
   }
-  test("Pi Estimation Experiment with User Defined Aggregation Function") {
+  test("Pi Approximation with User Defined Aggregation Function") {
     time {
-        val experiment = new Experiment[Input, PiTrial, PiOutput](
-          name = "Estimation of Pi by Monte Carlo method",
-          monteCarloMultiplicity = 10000,
-          trialBuilderFunction = _ => new PiTrial(1000),
-          outputCollectorBuilderFunction = PiOutput(_),
-          outputCollectorNeededFunction = _.turn() != 0,
-          sparkConf = new SparkConf().setMaster("local[*]")
-        )
-        import experiment.spark.implicits._
-        val outputDS = experiment.run().toDS().cache()
-        outputDS.show(10)
-        outputDS.createTempView("outputDS")
-        val df = experiment.spark
-          .sql("select avg(piValue) as pi , error(piValue, 0.99999) from outputDS").cache()
-        df.show()
-        val (myPi,udfError) = (df.first().getAs[Double](0), df.first().getAs[Double](1))
-        println(s"The empirical Pi is $myPi +/-$udfError with 99.999% confidence level.")
-        println(s"Run ${experiment.monteCarloMultiplicity} trials, " +
-          s"yielding ${outputDS.count()} output results with UDAF.")
+      val experiment = new Experiment[Input, PiTrial, PiOutput](
+        name = "Pi Approximation with User Defined Aggregation Function",
+        monteCarloMultiplicity = 10000,
+        trialBuilderFunction = _ => new PiTrial(1000),
+        outputCollectorBuilderFunction = PiOutput(_),
+        outputCollectorNeededFunction = _.turn() != 0,
+        sparkConf = testSparkConf
+      )
+      val conf = 0.99999
+      import experiment.spark.implicits._
+      experiment.run().toDS().createTempView("PiOutputTable")
+      val out = experiment.spark
+        .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
+          + " from PiOutputTable").as[AggrPiOutput].first()
 
-        // We let it fail when 99.999% confidence interval doesn't include the Math.PI
-        assert(myPi - udfError < Math.PI  && Math.PI < myPi + udfError)
-      }
+      println(s"The empirical Pi is ${out.pi} +/-${out.error} with ${conf*100}% confidence level.")
+      println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${out.count} output results with UDAF.")
 
+
+      // We let it fail when 99.999% confidence interval doesn't include the Math.PI
+      assert(out.pi - out.error < Math.PI && Math.PI < out.pi + out.error )
+      experiment.spark.stop()
     }
+
+  }
   test("Galton-Watson Experiment") {
 
     val experiment = new Experiment[GwInput, GwTrial, GwOutput](
@@ -83,7 +81,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
         seedNode = new GwNode(trialInput.lambda)),
       outputCollectorBuilderFunction = trial => GwOutput(trial),
       outputCollectorNeededFunction = trial => trial.turn() % 10 == 0 || trial.isFinished,
-      sparkConf = new SparkConf().setMaster("local[*]")
+      sparkConf = testSparkConf
     )
 
 
@@ -98,7 +96,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     println("Confidence Intervals for the survival probabilities")
     trialOutputDS.toDF()
       .groupBy(experiment.input).calculateConfidenceIntervals(
-      "seedSurvivalChance",List(0.95,0.99,0.999)).orderBy(experiment.input).show()
+      "seedSurvivalChance", List(0.95, 0.99, 0.999)).orderBy(experiment.input).show()
 
     analyzer.expectedExtinctionTimesByLambda().show()
     val turns = analyzer.turns()
@@ -106,7 +104,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     assert(trials * 5 < turns)
     println(s"\n$turns turns processed in $trials trials, averaging "
       + f"${turns.toDouble / trials}%1.1f turns per trial\n")
-
+    experiment.spark.stop()
   }
 
   test("Galton-Watson Experiment with Resource Limitation ") {
@@ -114,7 +112,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     val experiment = new Experiment[GwrInput, GwrTrial, GwrOutput](
       name = "Galton-Watson with Resources Experiment",
       input = GwrInput(
-        seedResourceAcquisitionFitness= Seq(1.0, 1.1, 1.2, 1.5, 2.0, 3.0),
+        seedResourceAcquisitionFitness = Seq(1.0, 1.1, 1.2, 1.5, 2.0, 3.0),
         totalResource = 100L),
 
       monteCarloMultiplicity = 500,
@@ -126,7 +124,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       ),
       outputCollectorNeededFunction = trial => trial.turn % 1 == 0 || trial.isFinished,
       outputCollectorBuilderFunction = trial => GwrOutput(trial),
-      sparkConf = new SparkConf().setMaster("local[*]")
+      sparkConf = testSparkConf
     )
     import experiment.spark.implicits._
     val trialOutputDS = experiment.run().toDS().cache()
@@ -147,13 +145,13 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
 
   }
   test("Replicator Experiment") {
-    val experiment = new Experiment[ReplicatorInput,ReplicatorTrial,ReplicatorOutput](
+    val experiment = new Experiment[ReplicatorInput, ReplicatorTrial, ReplicatorOutput](
       name = "Galton-Watson with Resources Experiment",
       input = ReplicatorInput(
-        seedResourceAcquisitionFitness= Vector(1.0, 1.1, 1.2, 1.5, 2.0, 3.0),
-        resilience = Vector(0.0, 0.4, 0.6,0.9, 0.99),
+        seedResourceAcquisitionFitness = Vector(1.0, 1.1, 1.2, 1.5, 2.0, 3.0),
+        resilience = Vector(0.0, 0.4, 0.6, 0.9, 0.99),
         totalResource = 100L),
-      monteCarloMultiplicity =  100,
+      monteCarloMultiplicity = 100,
 
       trialBuilderFunction = trialInput => new ReplicatorTrial(
         maxResource = trialInput.totalResource,
@@ -162,9 +160,9 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
         nrOfSeedReplicators = 1,
         opponentReplicator = new Replicator(
           RGene(resourceAcquisitionFitness = 1.0, label = "opponent"))),
-      outputCollectorNeededFunction = trial => trial.turn %1 ==0 || trial.isFinished,
+      outputCollectorNeededFunction = trial => trial.turn % 1 == 0 || trial.isFinished,
       outputCollectorBuilderFunction = trial => ReplicatorOutput(trial),
-      sparkConf = new SparkConf().setMaster("local[*]")
+      sparkConf = testSparkConf
     )
     import experiment.spark.implicits._
     val trialOutputDS = experiment.run().toDS().cache()
@@ -175,13 +173,14 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     println("Confidence Intervals for the survival probabilities")
     trialOutputDS.toDF()
       .groupBy(experiment.input).calculateConfidenceIntervals(
-      "seedSurvivalChance",List(0.99))
+      "seedSurvivalChance", List(0.99))
       .orderBy(experiment.input).show(100)
 
     val turns = analyzer.turns()
     val trials = analyzer.trials()
     println(s"\n$turns turns processed in $trials trials, averaging "
       + f"${turns.toDouble / trials}%1.1f turns per trial\n")
+    experiment.spark.stop()
 
   }
 

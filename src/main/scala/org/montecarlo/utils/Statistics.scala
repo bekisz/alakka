@@ -4,7 +4,7 @@ import org.apache.commons.math3.distribution.{NormalDistribution, TDistribution}
 
 import scala.math.sqrt
 
-case class ConfidenceInterval(mean: Double, low: Double, high: Double, confidence: Double) {
+case class ConfidenceInterval(mean: Double, low: Double, high: Double, confidence: Double, sampleCount:Long) {
   override def toString: String = {
 
     val str = new StringBuilder(50)

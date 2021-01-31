@@ -1,7 +1,5 @@
 package org.montecarlo.examples.pi
 
-import org.apache.spark.sql.functions.avg
-import org.montecarlo.Implicits._
 import org.montecarlo.{EmptyInput, Experiment, Trial}
 
 import scala.math.random
@@ -15,7 +13,7 @@ import scala.math.random
  *
  * @param maxTurns Number of turns where in each turn a random point is generated
  */
-class PiTrial(val maxTurns: Int = 1) extends Trial with Serializable {
+class PiTrial(val maxTurns: Long = 1) extends Trial with Serializable {
   var piValue = 0.0
 
   def isFinished: Boolean = turn() >= this.maxTurns
@@ -33,11 +31,23 @@ class PiTrial(val maxTurns: Int = 1) extends Trial with Serializable {
   }
 }
 
+/**
+ * This is will act as one row in our huge table of all Monte Carlo experiment results
+ * @param piValue 0 or 4
+ */
 case class PiOutput(piValue: Double)
-
 object PiOutput {
   def apply(t: PiTrial): PiOutput = new PiOutput(t.piValue)
 }
+
+/**
+ * The case class for final results
+ * @param count The number of results yielded by the Monte Carlo experiments
+ * @param pi The empirical pi = mean of [[PiOutput.piValue]]s
+ * @param error The sampling error with given confidence level
+ */
+case class AggrPiOutput(count:Long, pi:Double, error:Double)
+
 
 /**
  * Picks points randomly in a 2x2 box centered in the origin.
@@ -48,21 +58,22 @@ object PiExperiment {
 
     val experiment = new Experiment[EmptyInput, PiTrial, PiOutput](
       name = "Estimation of Pi by the Monte Carlo method",
-      monteCarloMultiplicity = if (args.length > 0) args(0).toInt else 1000000,
-      trialBuilderFunction = _ => new PiTrial(2000),
+      monteCarloMultiplicity = if (args.length > 0) args(0).toLong else 10*1000L,
+      trialBuilderFunction = _ => new PiTrial(1000),
       outputCollectorBuilderFunction = PiOutput(_),
       outputCollectorNeededFunction = _.turn() != 0 // we don't need initial pre-run trial outputs
     )
+    val conf = 0.95
     import experiment.spark.implicits._
-    val outputDS = experiment.run().toDS().cache()
-    outputDS.show(10)
-    val myPi = outputDS.select(avg($"piValue").as("piValue")).as[PiOutput].first().piValue
 
+    experiment.run().toDS().createTempView("PiOutputTable")
+    val out = experiment.spark
+      .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
+        + " from PiOutputTable").as[AggrPiOutput].first()
 
-    val myPiCI = outputDS.toDF().calculateConfidenceInterval(0.9999)
-    println(s"The empirical Pi is $myPi +/-${myPi - myPiCI.low}"
-      + s" with ${myPiCI.confidence * 100}% confidence level.")
-    println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${outputDS.count()} output results.")
+    println(s"The empirical Pi is ${out.pi} +/-${out.error} with ${conf*100}% confidence level.")
+    println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${out.count} output results with UDAF.")
+
     experiment.spark.stop()
   }
 
