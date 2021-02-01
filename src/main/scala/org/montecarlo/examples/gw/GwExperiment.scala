@@ -18,8 +18,8 @@ import org.montecarlo.{Experiment, Input, Parameter}
  *                      declare our seed node as a survivor
  */
 case class GwInput(
-                    lambda: Parameter[Double] = ("0.9".toBD to "4.0".toBD by "0.1".toBD).map(_.toDouble),
-                    maxPopulation: Parameter[Long] = 100L
+                    lambda: Parameter[Double] = ("0.9".toBD to "4.0".toBD by "0.05".toBD).map(_.toDouble),
+                    maxPopulation: Parameter[Long] = Seq(100L, 500L, 1000L)
                   ) extends Input
 
 /**
