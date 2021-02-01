@@ -1,8 +1,11 @@
 package org.montecarlo
 
+import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.functions.{avg, count, stddev, sum}
-import org.apache.spark.sql.{DataFrame, Dataset,  SparkSession}
+import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
 import org.montecarlo.utils.{ConfidenceInterval, Statistics}
+
+import scala.collection.mutable.ArrayBuffer
 
 class MvDataFrame(val df : DataFrame)  {
   protected val spark:SparkSession = this.df.sparkSession
@@ -93,13 +96,42 @@ class MvDataFrame(val df : DataFrame)  {
   }
 
   /**
-   * Alias for [[MvDataFrame.sort()]].
+   * Alias for [[MvDataFrame.sort]].
    * Returns a new Dataset sorted by the experiment [[Input]] dimensions in ascending order.
    *
    * @param input The [[Input]] that was given to the experiment
    * @return A new, ordered MvDataFrame
    */
   def orderBy(input: Input) :MvDataFrame = this.sort(input)
+
+  /**
+   * Trials are not producing output rows after they have finished. This can be a problem when  we
+   * want to compare and analyze the trials in any given turn. To avoid this, this method can prolong the
+   * trials till [[prolongTillTurn]] filling the last output with the trailing turns.
+   *
+   * Needed column names : "turn", "isFinished"
+   *
+   * @param prolongTillTurn
+   * @return an OutputDF with prolonged turns
+   */
+  def retroActivelyProlongTrials(prolongTillTurn:Int): MvDataFrame = {
+    import spark.implicits._
+    MvDataFrame(
+    this.df.filter($"turn" <= prolongTillTurn).flatMap({ row =>
+      var rows = row :: List[Row]()
+      val rowTurn = row.getAs[Long]("turn")
+      val turnIndex = row.fieldIndex("turn")
+      if (row.getAs[Boolean]("isFinished")) {
+        rows = rows :::
+          (rowTurn +1 to prolongTillTurn).map(newTurn => {
+            val buffer = ArrayBuffer[Any](row.toSeq:_*)
+            buffer(turnIndex) = newTurn
+            Row.fromSeq(buffer)
+          }).toList
+      }
+      rows
+    })(RowEncoder(this.df.schema)))
+  }
 }
 
 object MvDataFrame {

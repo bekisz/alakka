@@ -12,6 +12,7 @@ import org.montecarlo.MvDataFrame
  */
 class GwAnalyzer(val gwOutputDS:Dataset[GwOutput]) extends MvDataFrame(gwOutputDS.toDF()) {
 
+
   /**
    * Calculates the average population by Lambda and Turn. It only makes sense if each turn is captured
    * @param maxTurn the table will collect data up until this turn number

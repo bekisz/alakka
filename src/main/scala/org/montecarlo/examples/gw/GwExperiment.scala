@@ -18,8 +18,8 @@ import org.montecarlo.{Experiment, Input, Parameter}
  *                      declare our seed node as a survivor
  */
 case class GwInput(
-                    lambda: Parameter[Double] = ("0.9".toBD to "4.0".toBD by "0.05".toBD).map(_.toDouble),
-                    maxPopulation: Parameter[Long] = Seq(100L, 500L, 1000L)
+                    lambda: Parameter[Double] = ("0.9".toBD to "3.0".toBD by "0.05".toBD).map(_.toDouble),
+                    maxPopulation: Parameter[Long] = Seq(100L)
                   ) extends Input
 
 /**
@@ -69,17 +69,35 @@ object GwExperiment {
       val confidence = 0.99
       import experiment.spark.implicits._
       val inputDimNames = experiment.input.fetchDimensions().mkString(", ")
+
       experiment.run().toDS().createTempView(GwOutput.name)
-      val sql: String = s"select $inputDimNames, count(seedSurvivalChance) as trials, " +
+
+      val sqlSeedSurvivalChance: String = s"select $inputDimNames, count(seedSurvivalChance) as trials, " +
         "avg(seedSurvivalChance) as seedSurvivalChance, " +
         s"error(seedSurvivalChance, $confidence) as error " +
         s"from ${GwOutput.name}  where isFinished==true group by $inputDimNames order by $inputDimNames"
-      println("SQL query : " + sql)
-      val aggrOutput = experiment.spark.sql(sql)
-      aggrOutput.show(100)
-      aggrOutput.repartition(1)
+      println("seedSurvivalChanceDF SQL query : " + sqlSeedSurvivalChance)
+      val seedSurvivalChanceDF = experiment.spark.sql(sqlSeedSurvivalChance)
+      seedSurvivalChanceDF.show(100)
+      seedSurvivalChanceDF.repartition(1)
         .write.format("csv").option("header","true")
         .mode(SaveMode.Overwrite).save("output/GaltonWatson_seedSurvivalChance.csv")
+
+      val prolongTrialsTill = 50 //turns
+
+      experiment.spark.table(GwOutput.name).retroActivelyProlongTrials(prolongTrialsTill)
+        .createTempView(GwOutput.name +"Prolonged")
+      val sqlSeedPopulationByTurn: String = s"select lambda, turn, " +
+        "avg(nrOfSeedNodes) as seedPopulation, " +
+        s"error(nrOfSeedNodes, $confidence) as error " +
+        s"from ${GwOutput.name}Prolonged where turn < $prolongTrialsTill group by lambda, turn  order by lambda, turn"
+      println("seedPopulationByTurnDF SQL query : " + sqlSeedPopulationByTurn)
+      val seedPopulationByTurnDF = experiment.spark.sql(sqlSeedPopulationByTurn)
+      seedPopulationByTurnDF.show(400)
+      seedPopulationByTurnDF.repartition(1)
+        .write.format("csv").option("header","true")
+        .mode(SaveMode.Overwrite).save("output/GaltonWatson_seedSurvivalChanceByTurn.csv")
+
       experiment.spark.stop()
     }
   }
