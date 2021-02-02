@@ -18,7 +18,7 @@ import org.montecarlo.{Experiment, Input, Parameter}
  *                      declare our seed node as a survivor
  */
 case class GwInput(
-                    lambda: Parameter[Double] = ("0.9".toBD to "3.0".toBD by "0.05".toBD).map(_.toDouble),
+                    lambda: Parameter[Double] = ("0.9".toBD to "4.0".toBD by "0.05".toBD).map(_.toDouble),
                     maxPopulation: Parameter[Long] = Seq(100L)
                   ) extends Input
 
@@ -60,7 +60,7 @@ object GwExperiment {
       val experiment = new Experiment[GwInput, GwTrial, GwOutput](
         name = "Galton-Watson Experiment",
         input = GwInput(),
-        monteCarloMultiplicity = if (args.length > 0) args(0).toInt else 1000,
+        monteCarloMultiplicity = if (args.length > 0) args(0).toInt else 10000,
         trialBuilderFunction = trialInput => new GwTrial(trialInput.maxPopulation,
           seedNode = new GwNode(trialInput.lambda)),
         outputCollectorBuilderFunction = trial => GwOutput(trial),
