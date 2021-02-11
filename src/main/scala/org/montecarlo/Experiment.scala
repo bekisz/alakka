@@ -1,8 +1,10 @@
 package org.montecarlo
 
+import ch.qos.logback.classic.Logger
 import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
+import org.slf4j.LoggerFactory
 
 import scala.reflect.ClassTag
 
@@ -43,7 +45,7 @@ class Experiment[InputType <: Input : ClassTag,
 
   val spark: SparkSession = SparkSession.builder.config(sparkConf).appName(name).getOrCreate()
   this.spark.udf.register("error", new ErrorUDAF)
-
+  val log: Logger = LoggerFactory.getLogger(getClass.getName).asInstanceOf[Logger]
   /**
    * Explodes the initial single instance of InputType to feeds them to the Trials created by trialBuilderFunction.
    * Then runs them parallel while collecting the trial output data with the help of OutputType
@@ -53,6 +55,8 @@ class Experiment[InputType <: Input : ClassTag,
   def run(): RDD[OutputType] = {
 
     this.welcomeMessage()
+    log.info(s"Running ${this.toString}...")
+
     val trialInputs = this.input.createInputPermutations().asInstanceOf[Seq[InputType]]
     //val trialInputDS = spark.sparkContext.parallelize(trialInputs)
     spark.sparkContext

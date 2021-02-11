@@ -3,7 +3,7 @@ package org.montecarlo.examples.gw
 import org.apache.spark.sql.SaveMode
 import org.montecarlo.Implicits._
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Experiment, Input, Parameter}
+import org.montecarlo.{Experiment, Input, Output, Parameter}
 
 /**
  * Input to our  <A HREF="https://en.wikipedia.org/wiki/Galton%E2%80%93Watson_process">Galton-Watson</A> Experiment.
@@ -18,7 +18,7 @@ import org.montecarlo.{Experiment, Input, Parameter}
  *                      declare our seed node as a survivor
  */
 case class GwInput(
-                    lambda: Parameter[Double] = ("0.9".toBD to "4.0".toBD by "0.05".toBD).map(_.toDouble),
+                    lambda: Parameter[Double] = ("0.9".toBD to "4.0".toBD by "0.6".toBD).map(_.toDouble),
                     maxPopulation: Parameter[Long] = Seq(100L)
                   ) extends Input
 
@@ -33,10 +33,9 @@ case class GwOutput(lambda: Double,
                     turn: Long,
                     isFinished: Boolean,
                     nrOfSeedNodes: Int,
-                    trialUniqueId: String) {
-}
+                    trialUniqueId: String) extends  Output
 
-object GwOutput {
+object GwOutput extends Output {
   def apply(t: GwTrial): GwOutput = new GwOutput(
     lambda = t.seedNode.lambdaForPoisson,
     maxPopulation = t.maxPopulation,
@@ -46,7 +45,6 @@ object GwOutput {
     nrOfSeedNodes = t.livingNodes.size,
     trialUniqueId = t.trialUniqueId
   )
-  def name:String = getClass.getSimpleName.split('$').head
 }
 
 /**
@@ -60,7 +58,7 @@ object GwExperiment {
       val experiment = new Experiment[GwInput, GwTrial, GwOutput](
         name = "Galton-Watson Experiment",
         input = GwInput(),
-        monteCarloMultiplicity = if (args.length > 0) args(0).toInt else 10000,
+        monteCarloMultiplicity = if (args.length > 0) args(0).toInt else 1000,
         trialBuilderFunction = trialInput => new GwTrial(trialInput.maxPopulation,
           seedNode = new GwNode(trialInput.lambda)),
         outputCollectorBuilderFunction = trial => GwOutput(trial),
@@ -79,6 +77,7 @@ object GwExperiment {
       println("seedSurvivalChanceDF SQL query : " + sqlSeedSurvivalChance)
       val seedSurvivalChanceDF = experiment.spark.sql(sqlSeedSurvivalChance)
       seedSurvivalChanceDF.show(100)
+
       seedSurvivalChanceDF.repartition(1)
         .write.format("csv").option("header","true")
         .mode(SaveMode.Overwrite).save("output/GaltonWatson_seedSurvivalChance.csv")
@@ -90,7 +89,7 @@ object GwExperiment {
       val sqlSeedPopulationByTurn: String = s"select lambda, turn, " +
         "avg(nrOfSeedNodes) as seedPopulation, " +
         s"error(nrOfSeedNodes, $confidence) as error " +
-        s"from ${GwOutput.name}Prolonged where turn < $prolongTrialsTill group by lambda, turn  order by lambda, turn"
+        s"from ${GwOutput.name}Prolonged where turn <= $prolongTrialsTill group by lambda, turn  order by lambda, turn"
       println("seedPopulationByTurnDF SQL query : " + sqlSeedPopulationByTurn)
       val seedPopulationByTurnDF = experiment.spark.sql(sqlSeedPopulationByTurn)
       seedPopulationByTurnDF.show(400)
@@ -98,6 +97,8 @@ object GwExperiment {
         .write.format("csv").option("header","true")
         .mode(SaveMode.Overwrite).save("output/GaltonWatson_seedSurvivalChanceByTurn.csv")
 
+      println(s"Distinct trials captured : ${experiment.spark.table(GwOutput.name).countTrials()}")
+      println(s"Distinct turns captured : ${experiment.spark.table(GwOutput.name).countTurns()}")
       experiment.spark.stop()
     }
   }

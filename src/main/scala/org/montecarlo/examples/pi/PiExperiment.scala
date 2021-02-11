@@ -1,6 +1,6 @@
 package org.montecarlo.examples.pi
 
-import org.montecarlo.{EmptyInput, Experiment, Trial}
+import org.montecarlo.{EmptyInput, Experiment, Output, Trial}
 
 import scala.math.random
 
@@ -35,8 +35,8 @@ class PiTrial(val maxTurns: Long = 1) extends Trial with Serializable {
  * This is will act as one row in our huge table of all Monte Carlo experiment results
  * @param piValue 0 or 4
  */
-case class PiOutput(piValue: Double)
-object PiOutput {
+case class PiOutput(piValue: Double)  extends Output
+object PiOutput extends Output {
   def apply(t: PiTrial): PiOutput = new PiOutput(t.piValue)
 }
 
@@ -66,10 +66,10 @@ object PiExperiment {
     val conf = 0.95
     import experiment.spark.implicits._
 
-    experiment.run().toDS().createTempView("PiOutputTable")
+    experiment.run().toDS().createTempView(PiOutput.name)
     val out = experiment.spark
       .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
-        + " from PiOutputTable").as[AggrPiOutput].first()
+        + s" from ${PiOutput.name}").as[AggrPiOutput].first()
 
     println(s"The empirical Pi is ${out.pi} +/-${out.error} with ${conf*100}% confidence level.")
     println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${out.count} output results with UDAF.")

@@ -2,8 +2,9 @@ package org.montecarlo.examples.replicator
 import org.apache.spark.sql.SaveMode
 import org.montecarlo.Implicits._
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Experiment, Input, Parameter}
-
+import org.montecarlo.{Experiment, Input, Output, Parameter}
+import org.slf4j.LoggerFactory
+import ch.qos.logback.classic.Logger
 /**
  * Input to our  <A HREF="https://en.wikipedia.org/wiki/Galton%E2%80%93Watson_process">Galton-Watson</A> Experiment.
  * Experiment runs all the combinations of these seedResourceAcquisitionFitness and totalResource variations.
@@ -35,8 +36,11 @@ case class ReplicatorOutput(turn: Long,
                             resilience: Double,
                             isFinished: Boolean,
                             nrOfSeedNodes:Int,
-                            trialUniqueId:String)
-object ReplicatorOutput {
+                            trialUniqueId:String) extends Output {
+}
+object ReplicatorOutput extends Output  {
+
+  // assertInputConformity(ClassTag(ReplicatorInput.getClass))
   /**
    * We extract the output parameters from t
    * @param t The trial
@@ -51,12 +55,14 @@ object ReplicatorOutput {
     t.seedReplicators().size,
     t.trialUniqueId
   )
+
 }
 
 /**
  *  Initiates Replicator Experiment
  */
 object ReplicatorExperiment {
+  val log: Logger = LoggerFactory.getLogger(getClass.getName).asInstanceOf[Logger]
   def main(args : Array[String]): Unit = {
     time {
 
@@ -75,27 +81,53 @@ object ReplicatorExperiment {
         outputCollectorNeededFunction = trial => trial.turn %1 ==0 || trial.isFinished,
         outputCollectorBuilderFunction = trial => ReplicatorOutput(trial)
       )
+
+      val confidence = 0.99
       import experiment.spark.implicits._
-      val trialOutputDS = experiment.run().toDS().cache()
-      trialOutputDS.show(20)
+      val inputDimNames = experiment.input.fetchDimensions().mkString(", ")
 
-      val analyzer = new ReplicatorAnalyzer(trialOutputDS)
+      experiment.run().toDS().createTempView(ReplicatorOutput.name)
+      val outputDF = experiment.spark.table(ReplicatorOutput.name)
+      log.debug(s"Distinct trials captured : ${outputDF.countTrials()}")
+      log.debug(s"Distinct turns captured : ${outputDF.countTurns()}")
 
-      println("Confidence Intervals for the survival probabilities")
-      trialOutputDS.toDF()
-        .groupBy(experiment.input).calculateConfidenceInterval("seedSurvivalChance",0.99)
-        .orderBy(experiment.input).show(100)
 
-      val turns = analyzer.turns()
-      val trials = analyzer.trials()
-      println(s"\n$turns turns processed in $trials trials, averaging "
-        + f"${turns.toDouble / trials}%1.1f turns per trial\n")
-      trialOutputDS.repartition(1)
+      val sqlSeedSurvivalChance: String = s"select $inputDimNames, count(seedSurvivalChance) as trials, " +
+        "avg(seedSurvivalChance) as seedSurvivalChance, " +
+        s"error(seedSurvivalChance, $confidence) as error " +
+        s"from ${ReplicatorOutput.name}  where isFinished==true group by $inputDimNames order by $inputDimNames"
+      log.debug(s"seedSurvivalChanceDF SQL query : $sqlSeedSurvivalChance")
+
+      //println("seedSurvivalChanceDF SQL query : " + sqlSeedSurvivalChance)
+      val seedSurvivalChanceDF = experiment.spark.sql(sqlSeedSurvivalChance)
+      seedSurvivalChanceDF.show(5)
+      val outputFile1 = "output/Replicator_seedSurvivalChance.csv"
+      seedSurvivalChanceDF.repartition(1)
         .write.format("csv").option("header","true")
-        .mode(SaveMode.Overwrite).save("output/replicator.csv")
+        .mode(SaveMode.Overwrite).save(outputFile1)
+      log.info(s"seedSurvivalChanceDF written to file $outputFile1")
+
+      val prolongTrialsTill = 50 //turns
+
+      experiment.spark.table(ReplicatorOutput.name).retroActivelyProlongTrials(prolongTrialsTill)
+        .createTempView(ReplicatorOutput.name +"Prolonged")
+      val sqlSeedPopulationByTurn: String = s"select seedResourceAcquisitionFitness, turn, " +
+        "avg(nrOfSeedNodes) as seedPopulation, " +
+        s"error(nrOfSeedNodes, $confidence) as error " +
+        s"from ${ReplicatorOutput.name}Prolonged where turn <= $prolongTrialsTill" +
+        s" group by seedResourceAcquisitionFitness, turn  order by seedResourceAcquisitionFitness, turn"
+      log.debug(s"seedPopulationByTurnDF SQL query $sqlSeedPopulationByTurn")
+
+      val seedPopulationByTurnDF = experiment.spark.sql(sqlSeedPopulationByTurn)
+      seedPopulationByTurnDF.show(10)
+      val outputFile2 = "output/Replicator_seedSurvivalChanceByTurn.csv"
+      seedPopulationByTurnDF.repartition(1)
+        .write.format("csv").option("header","true")
+        .mode(SaveMode.Overwrite).save(outputFile2)
+      log.info(s"seedPopulationByTurnDF written to file $outputFile2")
+      log.info(s"Ending ${experiment.name}")
       experiment.spark.stop()
-
-
     }
+
   }
 }

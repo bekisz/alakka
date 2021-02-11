@@ -54,10 +54,10 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       )
       val conf = 0.99999
       import experiment.spark.implicits._
-      experiment.run().toDS().createTempView("PiOutputTable")
+      experiment.run().toDS().createTempView(PiOutput.name)
       val out = experiment.spark
         .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
-          + " from PiOutputTable").as[AggrPiOutput].first()
+          + s" from ${PiOutput.name}").as[AggrPiOutput].first()
 
       println(s"The empirical Pi is ${out.pi} +/-${out.error} with ${conf*100}% confidence level.")
       println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${out.count} output results with UDAF.")
@@ -84,26 +84,31 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       sparkConf = testSparkConf
     )
 
-
+    val confidence = 0.99
     import experiment.spark.implicits._
-    val trialOutputDS = experiment.run().toDS().cache()
+    val inputDimNames = experiment.input.fetchDimensions().mkString(", ")
 
-    assert(trialOutputDS.count() >= experiment.multiplicity())
-    trialOutputDS.show(20)
+    experiment.run().toDS().createTempView(GwOutput.name)
 
-    val analyzer = new GwAnalyzer(trialOutputDS)
+    val sqlSeedSurvivalChance: String = s"select $inputDimNames, count(seedSurvivalChance) as trials, " +
+      "avg(seedSurvivalChance) as seedSurvivalChance, " +
+      s"error(seedSurvivalChance, $confidence) as error " +
+      s"from ${GwOutput.name}  where isFinished==true group by $inputDimNames order by $inputDimNames"
+    println("seedSurvivalChanceDF SQL query : " + sqlSeedSurvivalChance)
+    val seedSurvivalChanceDF = experiment.spark.sql(sqlSeedSurvivalChance)
+    seedSurvivalChanceDF.show(100)
 
-    println("Confidence Intervals for the survival probabilities")
-    trialOutputDS.toDF()
+    println("Multiple Confidence Intervals for the survival probabilities")
+    experiment.spark.table(GwOutput.name).toDF()
       .groupBy(experiment.input).calculateConfidenceIntervals(
       "seedSurvivalChance", List(0.95, 0.99, 0.999)).orderBy(experiment.input).show()
 
-    analyzer.expectedExtinctionTimesByLambda().show()
-    val turns = analyzer.turns()
-    val trials = analyzer.trials()
-    assert(trials * 5 < turns)
-    println(s"\n$turns turns processed in $trials trials, averaging "
-      + f"${turns.toDouble / trials}%1.1f turns per trial\n")
+    val turns = experiment.spark.table(GwOutput.name).countTurns()
+    val trials = experiment.spark.table(GwOutput.name).countTrials()
+    println(s"Distinct trials captured : $trials")
+    println(s"Distinct turns captured : $turns")
+
+    assert(trials == experiment.multiplicity())
     experiment.spark.stop()
   }
 
@@ -130,19 +135,17 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     val trialOutputDS = experiment.run().toDS().cache()
     trialOutputDS.show(20)
 
-    val analyzer = new GwrAnalyzer(trialOutputDS)
+
 
     println("Confidence Intervals for the survival probabilities")
     trialOutputDS.toDF().groupBy(experiment.input).calculateConfidenceIntervals(
       "seedSurvivalChance", List(0.95, 0.99, 0.999)).orderBy(experiment.input).show()
 
-    val turns = analyzer.turns()
-    val trials = analyzer.trials()
-    assert(trials * 5 < turns)
-
-    println(s"\n$turns turns processed in $trials trials, averaging "
-      + f"${turns.toDouble / trials}%1.1f turns per trial\n")
-
+    val turns = experiment.spark.table(GwOutput.name).countTurns()
+    val trials = experiment.spark.table(GwOutput.name).countTrials()
+    println(s"Distinct trials captured : $trials")
+    println(s"Distinct turns captured : $turns")
+    assert(trials == experiment.multiplicity())
   }
   test("Replicator Experiment") {
     val experiment = new Experiment[ReplicatorInput, ReplicatorTrial, ReplicatorOutput](
@@ -176,11 +179,12 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       "seedSurvivalChance", List(0.99))
       .orderBy(experiment.input).show(100)
 
-    val turns = analyzer.turns()
-    val trials = analyzer.trials()
-    println(s"\n$turns turns processed in $trials trials, averaging "
-      + f"${turns.toDouble / trials}%1.1f turns per trial\n")
-    experiment.spark.stop()
+
+    val turns = experiment.spark.table(GwOutput.name).countTurns()
+    val trials = experiment.spark.table(GwOutput.name).countTrials()
+    println(s"Distinct trials captured : $trials")
+    println(s"Distinct turns captured : $turns")
+    assert(trials == experiment.multiplicity())
 
   }
 

@@ -1,7 +1,7 @@
 package org.montecarlo
 
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
-import org.apache.spark.sql.functions.{avg, count, stddev, sum}
+import org.apache.spark.sql.functions.{avg, count, stddev}
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
 import org.montecarlo.utils.{ConfidenceInterval, Statistics}
 
@@ -10,21 +10,6 @@ import scala.collection.mutable.ArrayBuffer
 class MvDataFrame(val df : DataFrame)  {
   protected val spark:SparkSession = this.df.sparkSession
 
-
-  /**
-   * @return # of turns summed in the experiment
-   */
-  def turns() : Long = {
-    import spark.implicits._
-    this.df.filter($"isFinished" ).select(sum("turn")).first().getAs[Long](0)
-  }
-  /**
-   * @return # of trial executed
-   */
-  def trials() : Long = {
-    import spark.implicits._
-    this.df.filter($"isFinished" ).count()
-  }
   def isOutputColumnsMatchInput(input:Input) : Boolean
     = input.fetchDimensions().map{this.df.columns.contains(_)}.reduce(_&_)
 
@@ -131,6 +116,21 @@ class MvDataFrame(val df : DataFrame)  {
       }
       rows
     })(RowEncoder(this.df.schema)))
+  }
+
+  /**
+   * The number of trials in the dataframe.
+   * @return
+   */
+  def countTrials():Long =  this.df.select("trialUniqueId").distinct().count()
+
+  /**
+   * The number of turns in the dataframe.
+   * @return
+   */
+  def countTurns():Long = {
+    import df.sparkSession.implicits._
+    this.df.filter($"turn" >0 ).select("trialUniqueId", "turn").distinct().count()
   }
 }
 

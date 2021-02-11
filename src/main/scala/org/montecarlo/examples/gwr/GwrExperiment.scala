@@ -1,8 +1,9 @@
 package org.montecarlo.examples.gwr
 
+import org.apache.spark.sql.SaveMode
 import org.montecarlo.Implicits._
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Experiment, Input, Parameter}
+import org.montecarlo.{Experiment, Input, Output, Parameter}
 
 /**
  * Input to our  <A HREF="https://en.wikipedia.org/wiki/Galton%E2%80%93Watson_process">Galton-Watson</A> Experiment.
@@ -19,7 +20,8 @@ import org.montecarlo.{Experiment, Input, Parameter}
  * @param totalResource Number of resource units available for all replicators. One resource unit maintains one node.
  */
 case class GwrInput(
-                      seedResourceAcquisitionFitness:Parameter[Double] = Vector(1.0, 1.1, 1.2, 1.5, 2.0),
+                      seedResourceAcquisitionFitness:Parameter[Double]
+                        = ("0.9".toBD to "4.0".toBD by "0.05".toBD).map(_.toDouble),
                       totalResource:Parameter[Long] = 100L
                   ) extends Input
 
@@ -33,20 +35,20 @@ case class GwrOutput(turn: Long,
                      seedResourceAcquisitionFitness: Double,
                      isFinished: Boolean,
                      nrOfSeedNodes:Int,
-                     trialUniqueId:String)
-object GwrOutput {
+                     trialUniqueId:String) extends Output
+object GwrOutput extends Output {
   /**
    * We extract the output parameters from t
    * @param t The trial
    * @return one raw in the output table
    */
   def apply(t:GwrTrial):GwrOutput = new GwrOutput(
-      t.turn(),
-      if (t.isSeedDominant) 1.0 else 0.0,
-      t.seedNode.gene.resourceAcquisitionFitness,
-      t.isFinished,
-      t.seedNodes().size,
-      t.trialUniqueId
+    turn = t.turn(),
+    seedSurvivalChance = if (t.isSeedDominant) 1.0 else 0.0,
+    seedResourceAcquisitionFitness = t.seedNode.gene.resourceAcquisitionFitness,
+    isFinished = t.isFinished,
+    nrOfSeedNodes =  t.seedNodes().size,
+    trialUniqueId = t.trialUniqueId
     )
 }
 
@@ -71,22 +73,41 @@ object GwrExperiment {
         outputCollectorNeededFunction = trial => trial.turn %1 ==0 || trial.isFinished,
         outputCollectorBuilderFunction = trial => GwrOutput(trial)
       )
+      val confidence = 0.99
       import experiment.spark.implicits._
-      val trialOutputDS = experiment.run().toDS().cache()
-      trialOutputDS.show(20)
-      val analyzer = new GwrAnalyzer(trialOutputDS)
+      val inputDimNames = experiment.input.fetchDimensions().mkString(", ")
 
-      println("Confidence Intervals for the survival probabilities")
+      experiment.run().toDS().createTempView(GwrOutput.name)
 
-      trialOutputDS.toDF().groupBy(experiment.input).calculateConfidenceIntervals(
-        "seedSurvivalChance",List(0.95,0.99,0.999)).orderBy(experiment.input).show()
+      val sqlSeedSurvivalChance: String = s"select $inputDimNames, count(seedSurvivalChance) as trials, " +
+        "avg(seedSurvivalChance) as seedSurvivalChance, " +
+        s"error(seedSurvivalChance, $confidence) as error " +
+        s"from ${GwrOutput.name}  where isFinished==true group by $inputDimNames order by $inputDimNames"
+      println("seedSurvivalChanceDF SQL query : " + sqlSeedSurvivalChance)
+      val seedSurvivalChanceDF = experiment.spark.sql(sqlSeedSurvivalChance)
+      seedSurvivalChanceDF.show(100)
 
+      seedSurvivalChanceDF.repartition(1)
+        .write.format("csv").option("header","true")
+        .mode(SaveMode.Overwrite).save("output/GWR_seedSurvivalChance.csv")
 
-      //analyzer.expectedExtinctionTimesByLambda().show()
-      val turns = analyzer.turns()
-      val trials = analyzer.trials()
-      println(s"\n$turns turns processed in $trials trials, averaging "
-        + f"${turns.toDouble / trials}%1.1f turns per trial\n")
+      val prolongTrialsTill = 50 //turns
+
+      experiment.spark.table(GwrOutput.name).retroActivelyProlongTrials(prolongTrialsTill)
+        .createTempView(GwrOutput.name +"Prolonged")
+      val sqlSeedPopulationByTurn: String = s"select seedResourceAcquisitionFitness, turn, " +
+        "avg(nrOfSeedNodes) as seedPopulation, " +
+        s"error(nrOfSeedNodes, $confidence) as error " +
+        s"from ${GwrOutput.name}Prolonged where turn <= $prolongTrialsTill" +
+        s" group by seedResourceAcquisitionFitness, turn  order by seedResourceAcquisitionFitness, turn"
+      println("seedPopulationByTurnDF SQL query : " + sqlSeedPopulationByTurn)
+      val seedPopulationByTurnDF = experiment.spark.sql(sqlSeedPopulationByTurn)
+      seedPopulationByTurnDF.show(400)
+      seedPopulationByTurnDF.repartition(1)
+        .write.format("csv").option("header","true")
+        .mode(SaveMode.Overwrite).save("output/GWR_seedSurvivalChanceByTurn.csv")
+      println(s"Distinct trials captured : ${experiment.spark.table(GwrOutput.name).countTrials()}")
+      println(s"Distinct turns captured : ${experiment.spark.table(GwrOutput.name).countTurns()}")
 
       experiment.spark.stop()
 

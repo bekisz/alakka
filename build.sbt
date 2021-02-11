@@ -49,7 +49,7 @@ ThisBuild / publishMavenStyle := true
 
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion,
-  //"ch.qos.logback" % "logback-classic" % "1.2.3",
+  "ch.qos.logback" % "logback-classic" % "1.2.3",
   //"com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test % "provided",
    "org.scalatest" %% "scalatest-funsuite" % "3.2.3" % Test,
   "org.scalatest" %% "scalatest" % "3.2.3" % Test,
