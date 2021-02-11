@@ -71,7 +71,7 @@ object ReplicatorExperiment {
       val experiment = new Experiment[ReplicatorInput,ReplicatorTrial,ReplicatorOutput](
         name = "Replicator Experiment",
         input = ReplicatorInput(),
-        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 20,
+        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 200,
 
         trialBuilderFunction = trialInput => new ReplicatorTrial(
           maxResource = trialInput.totalResource,
