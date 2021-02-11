@@ -20,7 +20,9 @@ import ch.qos.logback.classic.Logger
  * @param totalResource Number of resource units available for all replicators. One resource unit maintains one node.
  */
 case class ReplicatorInput(
-                     seedResourceAcquisitionFitness:Parameter[Double] = Seq(1.0, 1.1, 1.2, 1.5, 2.0, 3.0),
+
+                     seedResourceAcquisitionFitness:Parameter[Double]
+                      = ("0.9".toBD to "4.0".toBD by "0.05".toBD).map(_.toDouble),
                      resilience:Parameter[Double] = Seq(0.0, 0.4, 0.8, 0.9, 0.99),
                      totalResource:Parameter[Long] = 100L
                    ) extends Input
