@@ -16,7 +16,7 @@
         <appender-ref ref="STDOUT" />
     </appender>
     <logger name="org.montecarlo" level="DEBUG"/>
-
+    <logger name="org.montecarlo.examples.replicator.ReplicatorTrial" level="WARN"/>
     <root level="WARN">
         <appender-ref ref="ASYNC"/>
     </root>

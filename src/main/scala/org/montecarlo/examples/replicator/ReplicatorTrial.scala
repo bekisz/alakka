@@ -1,6 +1,8 @@
 package org.montecarlo.examples.replicator
 
+import ch.qos.logback.classic.Logger
 import org.montecarlo.Trial
+import org.slf4j.LoggerFactory
 
 
 /**
@@ -16,40 +18,40 @@ import org.montecarlo.Trial
  * @param nrOfSeedReplicators The initial number of seed replicators/replicators. seedReplicator is cloned this many times
  * @param opponentReplicator  One opponent node that is runs again our seed node. Its numbers will be filled as long as
  *                      there are available resources
- * @param dominantQualifier When seedReplicators reaches this ratio in the population we consider it a winning position,
- *                          the seed became dominant
  *
  */
 class ReplicatorTrial(val maxResource:Long,
                       val seedReplicator:Replicator,
                       val nrOfSeedReplicators:Long,
-                      val opponentReplicator:Replicator,
-                      val dominantQualifier:Double = 0.8)
+                      val opponentReplicator:Replicator)
   extends Trial with  Serializable
 {
   var replicators:Seq[Replicator]= (1 to maxResource.toInt)
-    .map{i=> if (i<=nrOfSeedReplicators) seedReplicator.clone() else  opponentReplicator.clone()}
+    .map{i=> if (i<=nrOfSeedReplicators) seedReplicator.replicate() else  opponentReplicator.replicate()}
+  val log: Logger = LoggerFactory.getLogger(getClass.getName).asInstanceOf[Logger]
 
   private var _isSeedDominant = false
+  private[this] var isTurnStatsDirty = false
+
   def isSeedDominant:Boolean = _isSeedDominant
 
   /**
    * Defines when we consider the trial ended. Default : There is only one gene exists
    */
-  val isFinishedFunc :Seq[Replicator] => Boolean = nodes => nodes.groupBy(_.gene).size < 2
+  //val isFinishedFunc :Seq[Replicator] => Boolean = nodes => nodes.map(_.gene.isDescendantOf(
   def seekDominantGene() : Gene = replicators.groupBy(_.gene).mapValues{_.size}.maxBy{ kv => kv._2}._1
-  def seedReplicators() : Seq[Replicator]  = replicators.filter(_.gene == this.seedReplicator.gene)
+  def seedReplicators() : Seq[Replicator]
+    = this.replicators.filter(_.gene.stickyMarker.contains(this.seedReplicator.gene.stickyMarker))
 
   /**
    * @return # of all seed descendant replicators (replicators) / all replicators
    */
-  def seedRatio() : Double = this.seedReplicators().size.toDouble / this.replicators.size
+  def seedReplicatorRatio() : Double = this.seedReplicators().size.toDouble / this.replicators.size
 
-
-  def dominantGeneRatio() : Double
-  = replicators.groupBy(_.gene).mapValues{_.size}.maxBy{ kv => kv._2}._2.toDouble/ replicators.size
-
-  def isFinished:Boolean =  this.isFinishedFunc(this.replicators)
+  def isSeedWon: Boolean =
+      this.seedReplicators().size == this.replicators.size
+  def isSeedLost: Boolean = this.seedReplicators().isEmpty
+  def isFinished: Boolean  = this.isSeedWon || this.isSeedLost
 
   /**
    *  One turn where all the replicators given the opportunity to spawn descendants weighted by the relative ratio of their
@@ -58,10 +60,15 @@ class ReplicatorTrial(val maxResource:Long,
    *  @return true if is has a next turn, false it was the final turn for this trial
    */
   override def nextTurn() : Boolean = {
-    //this.replicators = this.replicators.flatMap(_.dieRandomly())
+
+    this.isTurnStatsDirty = true
     val sumOfResourceAcquisitionFitness = replicators.map(_.gene.resourceAcquisitionFitness).sum
     this.replicators = this.replicators.flatMap(_.nextTurn(maxResource/sumOfResourceAcquisitionFitness))
-    this._isSeedDominant = this.seedRatio() > this.dominantQualifier
+    log.debug(s"Trial ${this.trialUniqueId} turn: ${this.turn()},"
+      + s" seedReplicators Num: ${this.seedReplicators().size}%, "
+      + s" seedReplicators %: ${this.seedReplicatorRatio()*100}% ")
+    this._isSeedDominant = this.isSeedWon
+
     super.nextTurn()
   }
 }

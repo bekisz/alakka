@@ -55,10 +55,9 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.2.3" % Test,
 
   "org.apache.spark" %% "spark-sql" %  sparkVersion,
-  "io.continuum.bokeh" %% "bokeh" % "0.6",
-  "org.apache.logging.log4j" %% "log4j-api-scala" % "11.0"
+  //"org.apache.logging.log4j" %% "log4j-api-scala" % "11.0"
 
-)
+).map(_.exclude("org.slf4j", "slf4j-log4j12"))
 
 /*
 fork := true

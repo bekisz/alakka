@@ -5,7 +5,7 @@ import org.montecarlo.Implicits._
 import org.montecarlo.examples.gw._
 import org.montecarlo.examples.gwr._
 import org.montecarlo.examples.pi.{AggrPiOutput, PiOutput, PiTrial}
-import org.montecarlo.examples.replicator.{Replicator, ReplicatorAnalyzer, ReplicatorInput, ReplicatorOutput, ReplicatorTrial, Gene => RGene}
+import org.montecarlo.examples.replicator.{Replicator, ReplicatorInput, ReplicatorOutput, ReplicatorTrial, Gene => RGene}
 import org.montecarlo.utils.Time.time
 import org.montecarlo.{Experiment, Input}
 import org.scalatest.BeforeAndAfter
@@ -152,17 +152,17 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       name = "Galton-Watson with Resources Experiment",
       input = ReplicatorInput(
         seedResourceAcquisitionFitness = Vector(1.0, 1.1, 1.2, 1.5, 2.0, 3.0),
-        resilience = Vector(0.0, 0.4, 0.6, 0.9, 0.99),
+        seedResilience = Vector(0.0, 0.4, 0.6, 0.9, 0.99),
         totalResource = 100L),
       monteCarloMultiplicity = 100,
 
       trialBuilderFunction = trialInput => new ReplicatorTrial(
         maxResource = trialInput.totalResource,
         seedReplicator = new Replicator(
-          RGene(trialInput.seedResourceAcquisitionFitness, trialInput.resilience, label = "seed")),
+          RGene(trialInput.seedResourceAcquisitionFitness, trialInput.seedResilience, stickyMarker = "seed")),
         nrOfSeedReplicators = 1,
         opponentReplicator = new Replicator(
-          RGene(resourceAcquisitionFitness = 1.0, label = "opponent"))),
+          RGene(resourceAcquisitionFitness = 1.0, stickyMarker = "opponent"))),
       outputCollectorNeededFunction = trial => trial.turn % 1 == 0 || trial.isFinished,
       outputCollectorBuilderFunction = trial => ReplicatorOutput(trial),
       sparkConf = testSparkConf
@@ -171,7 +171,6 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     val trialOutputDS = experiment.run().toDS().cache()
     trialOutputDS.show(20)
 
-    val analyzer = new ReplicatorAnalyzer(trialOutputDS)
 
     println("Confidence Intervals for the survival probabilities")
     trialOutputDS.toDF()

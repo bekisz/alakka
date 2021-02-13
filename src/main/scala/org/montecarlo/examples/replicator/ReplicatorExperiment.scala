@@ -21,10 +21,11 @@ import ch.qos.logback.classic.Logger
  */
 case class ReplicatorInput(
 
-                     seedResourceAcquisitionFitness:Parameter[Double]
-                      = ("0.9".toBD to "4.0".toBD by "0.05".toBD).map(_.toDouble),
-                     resilience:Parameter[Double] = Seq(0.0, 0.4, 0.8, 0.9, 0.99),
-                     totalResource:Parameter[Long] = 100L
+                            seedResourceAcquisitionFitness:Parameter[Double] =1.8,
+                            seedResilience:Parameter[Double] = Seq(0.0,0.5),
+                            seedMutationProbability:Parameter[Double]
+                            =("0.0".toBD to "0.5".toBD by "0.1".toBD).map(_.toDouble),
+                            totalResource:Parameter[Long] = 100L
                    ) extends Input
 
 /**
@@ -35,7 +36,8 @@ case class ReplicatorInput(
 case class ReplicatorOutput(turn: Long,
                             seedSurvivalChance: Double,
                             seedResourceAcquisitionFitness: Double,
-                            resilience: Double,
+                            seedResilience: Double,
+                            seedMutationProbability : Double,
                             isFinished: Boolean,
                             nrOfSeedNodes:Int,
                             trialUniqueId:String) extends Output {
@@ -49,13 +51,14 @@ object ReplicatorOutput extends Output  {
    * @return one raw in the output table
    */
   def apply(t:ReplicatorTrial):ReplicatorOutput = new ReplicatorOutput(
-    t.turn(),
-    if (t.isSeedDominant) 1.0 else 0.0,
-    t.seedReplicator.gene.resourceAcquisitionFitness,
-    t.seedReplicator.gene.resilience,
-    t.isFinished,
-    t.seedReplicators().size,
-    t.trialUniqueId
+    turn = t.turn(),
+    seedSurvivalChance = if (t.isSeedDominant) 1.0 else 0.0,
+    seedResourceAcquisitionFitness = t.seedReplicator.gene.resourceAcquisitionFitness,
+    seedResilience =   t.seedReplicator.gene.resilience,
+    seedMutationProbability = t.seedReplicator.gene.mutationProbability,
+    isFinished = t.isFinished,
+    nrOfSeedNodes = t.seedReplicators().size,
+    trialUniqueId =t.trialUniqueId
   )
 
 }
@@ -67,19 +70,25 @@ object ReplicatorExperiment {
   val log: Logger = LoggerFactory.getLogger(getClass.getName).asInstanceOf[Logger]
   def main(args : Array[String]): Unit = {
     time {
-
+      val rootGene = Gene(marker = "root")
       val experiment = new Experiment[ReplicatorInput,ReplicatorTrial,ReplicatorOutput](
         name = "Replicator Experiment",
         input = ReplicatorInput(),
-        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 200,
+        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 300,
 
         trialBuilderFunction = trialInput => new ReplicatorTrial(
           maxResource = trialInput.totalResource,
           seedReplicator = new Replicator(
-            Gene(trialInput.seedResourceAcquisitionFitness, trialInput.resilience, label = "seed")),
+            rootGene.copy(
+              resourceAcquisitionFitness = trialInput.seedResourceAcquisitionFitness,
+              resilience = trialInput.seedResilience,
+              mutationProbability = trialInput.seedMutationProbability,
+              mutationFunc =  Gene.mutationFunc0to110UniformRAF,
+              ancestor = rootGene,
+              marker = "seed", stickyMarker = "seed")),
           nrOfSeedReplicators = 1,
-          opponentReplicator = new Replicator(
-            Gene(resourceAcquisitionFitness = 1.0, resilience = 0.0, label = "opponent"))),
+          opponentReplicator
+            = new Replicator(rootGene.copy(marker = "opponent", stickyMarker = "opponent", ancestor = rootGene))),
         outputCollectorNeededFunction = trial => trial.turn %1 ==0 || trial.isFinished,
         outputCollectorBuilderFunction = trial => ReplicatorOutput(trial)
       )
@@ -89,9 +98,9 @@ object ReplicatorExperiment {
       val inputDimNames = experiment.input.fetchDimensions().mkString(", ")
 
       experiment.run().toDS().createTempView(ReplicatorOutput.name)
-      val outputDF = experiment.spark.table(ReplicatorOutput.name)
-      log.debug(s"Distinct trials captured : ${outputDF.countTrials()}")
-      log.debug(s"Distinct turns captured : ${outputDF.countTurns()}")
+      //val outputDF = experiment.spark.table(ReplicatorOutput.name)
+      //log.debug(s"Distinct trials captured : ${outputDF.countTrials()}")
+      //log.debug(s"Distinct turns captured : ${outputDF.countTurns()}")
 
 
       val sqlSeedSurvivalChance: String = s"select $inputDimNames, count(seedSurvivalChance) as trials, " +
@@ -102,7 +111,7 @@ object ReplicatorExperiment {
 
       //println("seedSurvivalChanceDF SQL query : " + sqlSeedSurvivalChance)
       val seedSurvivalChanceDF = experiment.spark.sql(sqlSeedSurvivalChance)
-      seedSurvivalChanceDF.show(5)
+      seedSurvivalChanceDF.show(40)
       val outputFile1 = "output/Replicator_seedSurvivalChance.csv"
       seedSurvivalChanceDF.repartition(1)
         .write.format("csv").option("header","true")
@@ -113,15 +122,15 @@ object ReplicatorExperiment {
 
       experiment.spark.table(ReplicatorOutput.name).retroActivelyProlongTrials(prolongTrialsTill)
         .createTempView(ReplicatorOutput.name +"Prolonged")
-      val sqlSeedPopulationByTurn: String = s"select seedResourceAcquisitionFitness, turn, " +
+      val sqlSeedPopulationByTurn: String = s"select seedResourceAcquisitionFitness, seedMutationProbability, turn, " +
         "avg(nrOfSeedNodes) as seedPopulation, " +
         s"error(nrOfSeedNodes, $confidence) as error " +
         s"from ${ReplicatorOutput.name}Prolonged where turn <= $prolongTrialsTill" +
-        s" group by seedResourceAcquisitionFitness, turn  order by seedResourceAcquisitionFitness, turn"
+        s" group by seedResourceAcquisitionFitness,seedMutationProbability, turn  order by seedResourceAcquisitionFitness, seedMutationProbability, turn"
       log.debug(s"seedPopulationByTurnDF SQL query $sqlSeedPopulationByTurn")
 
       val seedPopulationByTurnDF = experiment.spark.sql(sqlSeedPopulationByTurn)
-      seedPopulationByTurnDF.show(10)
+      seedPopulationByTurnDF.show(100)
       val outputFile2 = "output/Replicator_seedSurvivalChanceByTurn.csv"
       seedPopulationByTurnDF.repartition(1)
         .write.format("csv").option("header","true")
