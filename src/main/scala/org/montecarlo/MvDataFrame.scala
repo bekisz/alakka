@@ -9,6 +9,12 @@ import scala.collection.mutable.ArrayBuffer
 
 class MvDataFrame(val df : DataFrame)  {
   protected val spark:SparkSession = this.df.sparkSession
+  private[this] var name:String="aDataFrame"
+  def setName(name:String) : MvDataFrame = {
+    this.name=name
+    this
+  }
+  def getName() : String = this.name
 
   def isOutputColumnsMatchInput(input:Input) : Boolean
     = input.fetchDimensions().map{this.df.columns.contains(_)}.reduce(_&_)

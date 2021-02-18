@@ -1,10 +1,10 @@
 package org.montecarlo.examples.replicator
+import ch.qos.logback.classic.Logger
 import org.apache.spark.sql.SaveMode
 import org.montecarlo.Implicits._
 import org.montecarlo.utils.Time.time
-import org.montecarlo.{Experiment, Input, Output, Parameter}
+import org.montecarlo._
 import org.slf4j.LoggerFactory
-import ch.qos.logback.classic.Logger
 /**
  * Input to our  <A HREF="https://en.wikipedia.org/wiki/Galton%E2%80%93Watson_process">Galton-Watson</A> Experiment.
  * Experiment runs all the combinations of these seedResourceAcquisitionFitness and totalResource variations.
@@ -21,10 +21,12 @@ import ch.qos.logback.classic.Logger
  */
 case class ReplicatorInput(
 
-                            seedResourceAcquisitionFitness:Parameter[Double] =1.8,
-                            seedResilience:Parameter[Double] = Seq(0.0,0.5),
+                            seedResourceAcquisitionFitness:Parameter[Double]
+                            = ("1.0".toBD to "2.0".toBD by "0.2".toBD).map(_.toDouble),
+                            seedResilience:Parameter[Double]
+                            =("0.0".toBD to "1.0".toBD by "0.1".toBD).map(_.toDouble),
                             seedMutationProbability:Parameter[Double]
-                            =("0.0".toBD to "0.5".toBD by "0.1".toBD).map(_.toDouble),
+                            =("0.0".toBD to "0.1".toBD by "0.02".toBD).map(_.toDouble),
                             totalResource:Parameter[Long] = 100L
                    ) extends Input
 
@@ -68,13 +70,29 @@ object ReplicatorOutput extends Output  {
  */
 object ReplicatorExperiment {
   val log: Logger = LoggerFactory.getLogger(getClass.getName).asInstanceOf[Logger]
+  private[this] val databaseUrl:String = "jdbc:postgresql://localhost/replicator?user=spark&password=spark"
+
+  private[this] def save(df:MvDataFrame): Unit = {
+
+    df.write.format("jdbc")
+      .option("url", databaseUrl)
+      .option("dbtable", df.getName()).mode(SaveMode.Overwrite).save()
+    log.info(s"Table ${df.getName()} written to $databaseUrl" )
+
+  }
+  private[this] def save2Csv(df:MvDataFrame, directory:String): Unit = {
+    val outputFile = s"$directory/${df.getName()}.csv"
+    df.repartition(1).write.format("csv").option("header","true")
+      .mode(SaveMode.Overwrite).save(outputFile)
+    log.info(s"${df.getName()} written to file $outputFile")
+  }
   def main(args : Array[String]): Unit = {
     time {
       val rootGene = Gene(marker = "root")
       val experiment = new Experiment[ReplicatorInput,ReplicatorTrial,ReplicatorOutput](
-        name = "Replicator Experiment",
+        name = "Replicator",
         input = ReplicatorInput(),
-        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 300,
+        monteCarloMultiplicity = if (args.length > 0)  args(0).toInt  else 10,
 
         trialBuilderFunction = trialInput => new ReplicatorTrial(
           maxResource = trialInput.totalResource,
@@ -98,7 +116,7 @@ object ReplicatorExperiment {
       val inputDimNames = experiment.input.fetchDimensions().mkString(", ")
 
       experiment.run().toDS().createTempView(ReplicatorOutput.name)
-      //val outputDF = experiment.spark.table(ReplicatorOutput.name)
+      //val outputDF = experiment.spark.table(ReplicatorOutput.tableName)
       //log.debug(s"Distinct trials captured : ${outputDF.countTrials()}")
       //log.debug(s"Distinct turns captured : ${outputDF.countTurns()}")
 
@@ -109,34 +127,27 @@ object ReplicatorExperiment {
         s"from ${ReplicatorOutput.name}  where isFinished==true group by $inputDimNames order by $inputDimNames"
       log.debug(s"seedSurvivalChanceDF SQL query : $sqlSeedSurvivalChance")
 
-      //println("seedSurvivalChanceDF SQL query : " + sqlSeedSurvivalChance)
-      val seedSurvivalChanceDF = experiment.spark.sql(sqlSeedSurvivalChance)
-      seedSurvivalChanceDF.show(40)
-      val outputFile1 = "output/Replicator_seedSurvivalChance.csv"
-      seedSurvivalChanceDF.repartition(1)
-        .write.format("csv").option("header","true")
-        .mode(SaveMode.Overwrite).save(outputFile1)
-      log.info(s"seedSurvivalChanceDF written to file $outputFile1")
+      val seedSurvivalChanceDF = experiment.spark.sql(sqlSeedSurvivalChance).cache().setName("seedSurvivalChance")
+      save(seedSurvivalChanceDF)
+      save2Csv(seedSurvivalChanceDF, "output/replicator")
 
       val prolongTrialsTill = 50 //turns
 
       experiment.spark.table(ReplicatorOutput.name).retroActivelyProlongTrials(prolongTrialsTill)
         .createTempView(ReplicatorOutput.name +"Prolonged")
-      val sqlSeedPopulationByTurn: String = s"select seedResourceAcquisitionFitness, seedMutationProbability, turn, " +
-        "avg(nrOfSeedNodes) as seedPopulation, " +
+      val sqlSeedPopulationByTurn: String = s"select seedResourceAcquisitionFitness, seedResilience, " +
+        s"seedMutationProbability, turn, avg(nrOfSeedNodes) as seedPopulation, " +
         s"error(nrOfSeedNodes, $confidence) as error " +
         s"from ${ReplicatorOutput.name}Prolonged where turn <= $prolongTrialsTill" +
-        s" group by seedResourceAcquisitionFitness,seedMutationProbability, turn  order by seedResourceAcquisitionFitness, seedMutationProbability, turn"
+        s" group by seedResourceAcquisitionFitness, seedResilience, seedMutationProbability, turn  order by " +
+        s"seedResourceAcquisitionFitness, seedResilience,seedMutationProbability, turn"
       log.debug(s"seedPopulationByTurnDF SQL query $sqlSeedPopulationByTurn")
 
-      val seedPopulationByTurnDF = experiment.spark.sql(sqlSeedPopulationByTurn)
-      seedPopulationByTurnDF.show(100)
-      val outputFile2 = "output/Replicator_seedSurvivalChanceByTurn.csv"
-      seedPopulationByTurnDF.repartition(1)
-        .write.format("csv").option("header","true")
-        .mode(SaveMode.Overwrite).save(outputFile2)
-      log.info(s"seedPopulationByTurnDF written to file $outputFile2")
-      log.info(s"Ending ${experiment.name}")
+      val seedPopulationByTurnDF = experiment.spark.sql(sqlSeedPopulationByTurn).cache().setName("seedPopulationByTurn")
+      save(seedPopulationByTurnDF)
+      save2Csv(seedPopulationByTurnDF, "output/replicator")
+
+      log.info(s"Ending ${experiment.name} experiment" )
       experiment.spark.stop()
     }
 
