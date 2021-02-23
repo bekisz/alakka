@@ -4,11 +4,14 @@ import ch.qos.logback.classic.Logger
 import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.streaming.{Duration, Milliseconds, StreamingContext}
 import org.montecarlo.utils.{HasMeasuredLifeTime, Statistics}
 import org.slf4j.LoggerFactory
 
 import java.util.UUID
+import scala.collection.mutable
 import scala.reflect.ClassTag
+
 
 /**
  * A generic implementation of a Monte-carlo experiment.
@@ -34,23 +37,28 @@ import scala.reflect.ClassTag
  *                                       only. If it is (trial=>trial.turn()%10==0 || trial.isFinished)  then...
  */
 class Experiment[InputType <: Input : ClassTag,
-  TrialType <: Trial : ClassTag, OutputType<:Output: ClassTag](val name: String,
-                                                       val input: InputType = EmptyInput(),
-                                                       val monteCarloMultiplicity: Long = 1000,
-                                                       val trialBuilderFunction: InputType => TrialType,
-                                                       val outputCollectorBuilderFunction: TrialType => OutputType,
-                                                       val outputCollectorNeededFunction: TrialType => Boolean,
-                                                       val sparkConf: SparkConf = new SparkConf(),
-                                                       val experimentId:String = UUID.randomUUID().toString
-                                                      ) extends Serializable with HasMultiplicity
-                                                            with HasMeasuredLifeTime {
+  TrialType <: Trial : ClassTag, OutputType <: Output : ClassTag]
+(val name: String,
+ val input: InputType = EmptyInput(),
+ val monteCarloMultiplicity: Long = 1000,
+ val trialBuilderFunction: InputType => TrialType,
+ val outputCollectorBuilderFunction: TrialType => OutputType,
+ val outputCollectorNeededFunction: TrialType => Boolean,
+ val sparkConf: SparkConf = new SparkConf(),
+ val experimentId: String = UUID.randomUUID().toString,
+ val samplingFrequency : Duration = Experiment.NoSampling
+) extends Serializable with HasMultiplicity
+  with HasMeasuredLifeTime {
 
 
   val spark: SparkSession = SparkSession.builder.config(sparkConf).appName(name).getOrCreate()
-  private val trialsStartedAccumulator = spark.sparkContext.longAccumulator("trialsStartedAccumulator")
-  private val trialTurnsExecutedAccumulator = spark.sparkContext.longAccumulator("trialTurnsExecutedAccumulator")
+  private val outputRddQueue = new mutable.SynchronizedQueue[RDD[OutputType]]()
+  @transient
+  private val ssc: StreamingContext = new StreamingContext(this.spark.sparkContext, samplingFrequency)
+  @transient
+  private val outputStream = ssc.queueStream(outputRddQueue, oneAtATime = false)
 
-  val errorUdfFunc : (Double, Double,Double,Double)
+  private val errorUdfFunc: (Double, Double, Double, Double)
     => Double = (weight, sum, sum2, confidence) => {
     //val count = weight
     val mean = sum / weight
@@ -58,16 +66,16 @@ class Experiment[InputType <: Input : ClassTag,
     val (low, high) = Statistics.confidenceInterval(weight.toLong, mean, stdDev, confidence)
     mean - low
   }
+  private val log: Logger = LoggerFactory.getLogger(getClass.getName).asInstanceOf[Logger]
+  private val trialsStartedAccumulator = spark.sparkContext.longAccumulator("trialsStartedAccumulator")
   this.spark.udf.register("errorUdfFunc", errorUdfFunc)
 
   this.spark.udf.register("error", new ErrorUDAF)
   this.spark.udf.register("weightedError", new WeightedErrorUDAF)
   this.spark.udf.register("weightedAverage", new WeightedAverageUDAF)
-
-  val log: Logger = LoggerFactory.getLogger(getClass.getName).asInstanceOf[Logger]
+  private val trialTurnsExecutedAccumulator = spark.sparkContext.longAccumulator("trialTurnsExecutedAccumulator")
 
   log.info(s"Created ${this.toString} experiment with id ${this.experimentId}...")
-
 
   /**
    * Explodes the initial single instance of InputType to feeds them to the Trials created by trialBuilderFunction.
@@ -80,10 +88,12 @@ class Experiment[InputType <: Input : ClassTag,
     //val trialInputDS = spark.sparkContext.parallelize(trialInputs)
     spark.sparkContext
       .parallelize(1L to monteCarloMultiplicity).flatMap(_ => trialInputs)
-      .map{
-        x => this.trialsStartedAccumulator.add(1L)
-          x }
-      .flatMap{  input => {
+      .map {
+        x =>
+          this.trialsStartedAccumulator.add(1L)
+          x
+      }
+      .flatMap { input => {
         val trial = this.trialBuilderFunction(input)
         var outputList = List[OutputType]()
         do {
@@ -94,10 +104,30 @@ class Experiment[InputType <: Input : ClassTag,
           outputList = this.outputCollectorBuilderFunction(trial) :: outputList
         trialTurnsExecutedAccumulator.add(trial.turn())
         outputList.reverse
-      }}
+      }
+      }
   }
+  var rddActionFunction : RDD[OutputType] => Unit = null
+  def foreachRDD(rddActionFunction: RDD[OutputType] => Unit):Unit = {
+    this.rddActionFunction = rddActionFunction
+    if (this.samplingFrequency != Experiment.NoSampling) { // Spark Streaming Solution
+      this.outputStream.foreachRDD(rddActionFunction)
+    }
+  }
+  def run() : Unit = {
+    if (this.samplingFrequency != Experiment.NoSampling) { // Spark Streaming Solution
+      ssc.start()
+      while (true) {
+        // println(s"Trials started:  ${experiment.trialsStartedAccumulator.sum}, " +
+        //   s"executed:${experiment.trialsExecutedAccumulator.sum}  " )
+        outputRddQueue += this.createOutputRDD(1)
+      }
+      ssc.awaitTermination()
+
+    } else this.rddActionFunction(this.createOutputRDD()) // Traditional one big RDD solution
 
 
+  }
   override def toString: String =
     s"${this.name} with (" +
       s"${this.input.fetchParameters().map(_.multiplicity()).mkString("x")}) x" +
@@ -109,14 +139,21 @@ class Experiment[InputType <: Input : ClassTag,
    */
   override def multiplicity(): Long = this.input.multiplicity() * this.monteCarloMultiplicity
 
-  def trialsStarted() : Long = this.trialsStartedAccumulator.count
-  def trialsExecuted() : Long = this.trialTurnsExecutedAccumulator.count
-  def turnsExecuted() : Long = this.trialTurnsExecutedAccumulator.sum
-  def avgTrialExecutionSpeedInSecs() : Double
+  def trialsStarted(): Long = this.trialsStartedAccumulator.count
+
+  def trialsExecuted(): Long = this.trialTurnsExecutedAccumulator.count
+
+  def turnsExecuted(): Long = this.trialTurnsExecutedAccumulator.sum
+
+  def avgTrialExecutionSpeedInSecs(): Double
   = this.trialTurnsExecutedAccumulator.count.toDouble / this.lifeTime() / 1000
-  def avgTurnExecutionSpeedInSecs() : Double
+
+  def avgTurnExecutionSpeedInSecs(): Double
   = this.trialTurnsExecutedAccumulator.sum.toDouble / this.lifeTime() / 1000
 
 
 }
 
+object Experiment {
+  val NoSampling:Duration = Milliseconds(Long.MaxValue)
+}
