@@ -68,7 +68,7 @@ object GwExperiment {
       import experiment.spark.implicits._
       val inputDimNames = experiment.input.fetchDimensions().mkString(", ")
 
-      experiment.run().toDS().createTempView(GwOutput.name)
+      experiment.createOutputRDD().toDS().createTempView(GwOutput.name)
 
       val sqlSeedSurvivalChance: String = s"select $inputDimNames, count(seedSurvivalChance) as trials, " +
         "avg(seedSurvivalChance) as seedSurvivalChance, " +

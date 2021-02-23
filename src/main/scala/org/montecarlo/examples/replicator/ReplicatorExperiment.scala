@@ -36,10 +36,10 @@ case class ReplicatorInput(
  */
 
 case class ReplicatorOutput(turn: Long,
-                            seedSurvivalChance: Double,
-                            seedResourceAcquisitionFitness: Double,
-                            seedResilience: Double,
-                            seedMutationProbability : Double,
+                            seedSurvivalChance: Double, // avg
+                            seedResourceAcquisitionFitness: Double, // avg
+                            seedResilience: Double, //avg
+                            seedMutationProbability : Double, //avg
                             isFinished: Boolean,
                             nrOfSeedNodes:Int,
                             trialUniqueId:String) extends Output {
@@ -114,31 +114,33 @@ object ReplicatorExperiment {
       val confidence = 0.99
       import experiment.spark.implicits._
       val inputDimNames = experiment.input.fetchDimensions().mkString(", ")
+      val inputParamNames = experiment.input.fetchParameterMap().keySet.mkString(", ")
 
-      experiment.run().toDS().createTempView(ReplicatorOutput.name)
+      val prolongTrialsTill = 50 //turns
+      experiment.createOutputRDD().toDF().retroActivelyProlongTrials(prolongTrialsTill)
+        .createTempView(ReplicatorOutput.name)
       //val outputDF = experiment.spark.table(ReplicatorOutput.tableName)
       //log.debug(s"Distinct trials captured : ${outputDF.countTrials()}")
       //log.debug(s"Distinct turns captured : ${outputDF.countTurns()}")
 
-
       val sqlSeedSurvivalChance: String = s"select $inputDimNames, count(seedSurvivalChance) as trials, " +
         "avg(seedSurvivalChance) as seedSurvivalChance, " +
         s"error(seedSurvivalChance, $confidence) as error " +
-        s"from ${ReplicatorOutput.name}  where isFinished==true group by $inputDimNames order by $inputDimNames"
+        s"from ${ReplicatorOutput.name}  where isFinished==true and" +
+        s" isProlonged==false group by $inputDimNames order by $inputDimNames"
       log.debug(s"seedSurvivalChanceDF SQL query : $sqlSeedSurvivalChance")
 
       val seedSurvivalChanceDF = experiment.spark.sql(sqlSeedSurvivalChance).cache().setName("seedSurvivalChance")
       save(seedSurvivalChanceDF)
       save2Csv(seedSurvivalChanceDF, "output/replicator")
 
-      val prolongTrialsTill = 50 //turns
 
       experiment.spark.table(ReplicatorOutput.name).retroActivelyProlongTrials(prolongTrialsTill)
         .createTempView(ReplicatorOutput.name +"Prolonged")
       val sqlSeedPopulationByTurn: String = s"select seedResourceAcquisitionFitness, seedResilience, " +
         s"seedMutationProbability, turn, avg(nrOfSeedNodes) as seedPopulation, " +
         s"error(nrOfSeedNodes, $confidence) as error " +
-        s"from ${ReplicatorOutput.name}Prolonged where turn <= $prolongTrialsTill" +
+        s"from ${ReplicatorOutput.name} where turn <= $prolongTrialsTill" +
         s" group by seedResourceAcquisitionFitness, seedResilience, seedMutationProbability, turn  order by " +
         s"seedResourceAcquisitionFitness, seedResilience,seedMutationProbability, turn"
       log.debug(s"seedPopulationByTurnDF SQL query $sqlSeedPopulationByTurn")

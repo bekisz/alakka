@@ -48,7 +48,7 @@ class Agent (context: ActorContext[Agent.Message]) extends AbstractBehavior[Agen
         replyTo ! Agent.InitedResponse(this.context.self)
         this
       case Agent.RunRequest(replyTo) =>
-        context.log.debug("Agent run")
+        context.log.debug("Agent createOutputRDD")
         println(s"${this.context.self.path} : Running ....")
         //replyTo ! Agent.RunnedResponse(this.context.self)
         this

@@ -54,9 +54,9 @@ class PiPerformanceTestSuite extends AnyFunSuite with BeforeAndAfter {
         sparkConf = testSparkConf
       )
       import experiment.spark.implicits._
-      experiment.run().toDF().createTempView(PiOutput.name)
+      experiment.createOutputRDD().toDF().createTempView(PiOutput.name)
       val aggrOut = experiment.spark
-        .sql(s"select count(piValue) as count, avg(piValue) as pi  from ${PiOutput.name}")
+        .sql(s"select count(sumOf) as count, avg(sumOf) as pi  from ${PiOutput.name}")
         .cache()
       val (myCount, myPi) = (aggrOut.first().getLong(0), aggrOut.first().getDouble(1))
       println(s"The empirical Pi is $myPi")
@@ -81,9 +81,9 @@ class PiPerformanceTestSuite extends AnyFunSuite with BeforeAndAfter {
       val conf = 0.9999
       import experiment.spark.implicits._
 
-      experiment.run().toDS().createTempView(PiOutput.name)
+      experiment.createOutputRDD().toDS().createTempView(PiOutput.name)
       val out = experiment.spark
-        .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
+        .sql(s"select count(sumOf) as count, avg(sumOf) as pi, error(sumOf, ${conf.toString}) as error"
           + s" from ${PiOutput.name}").as[AggrPiOutput].first()
 
       println(s"The empirical Pi is ${out.pi} +/-${out.error} with ${conf*100}% confidence level.")
@@ -105,7 +105,7 @@ class PiPerformanceTestSuite extends AnyFunSuite with BeforeAndAfter {
         sparkConf = testSparkConf
       )
       import experiment.spark.implicits._
-      val myPiCI = experiment.run().toDF().calculateConfidenceInterval(0.99999)
+      val myPiCI = experiment.createOutputRDD().toDF().calculateConfidenceInterval(0.99999)
       println(s"The empirical Pi is ${myPiCI.mean} +/-${myPiCI.mean - myPiCI.low}"
         + s" with ${myPiCI.confidence * 100}% confidence level.")
       println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${myPiCI.sampleCount} output results.")

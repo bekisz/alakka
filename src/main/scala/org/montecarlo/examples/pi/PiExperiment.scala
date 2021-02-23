@@ -6,8 +6,8 @@ import scala.math.random
 
 /**
  * Picks maxTurns random points in a 2x2 box centered in the origin.
- * If the random point is within 1 unit of distance from origin it sets piValue to 4 otherwise to 0.
- * The average of piValue will provide the estimation of Pi.
+ * If the random point is within 1 unit of distance from origin it sets sumOf to 4 otherwise to 0.
+ * The average of sumOf will provide the estimation of Pi.
  * Rationale : The area of the 2x2 box is 4, the area of the 1 unit radius circle is 1*1*Pi = Pi. =>
  * So Pi/4 == P(inCircle)/1
  *
@@ -57,16 +57,16 @@ object PiExperiment {
   def main(args: Array[String]): Unit = {
 
     val experiment = new Experiment[EmptyInput, PiTrial, PiOutput](
-      name = "Estimation of Pi by the Monte Carlo method",
+      name = "Monte Carlo Pi",
       monteCarloMultiplicity = if (args.length > 0) args(0).toLong else 10*1000L,
       trialBuilderFunction = _ => new PiTrial(1000),
       outputCollectorBuilderFunction = PiOutput(_),
-      outputCollectorNeededFunction = _.turn() != 0 // we don't need initial pre-run trial outputs
+      outputCollectorNeededFunction = _.turn() != 0 // we don't need initial pre-createOutputRDD trial outputs
     )
     val conf = 0.95
     import experiment.spark.implicits._
 
-    experiment.run().toDS().createTempView(PiOutput.name)
+    experiment.createOutputRDD().toDS().createTempView(PiOutput.name)
     val out = experiment.spark
       .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
         + s" from ${PiOutput.name}").as[AggrPiOutput].first()

@@ -55,6 +55,7 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.2.3" % Test,
 
   "org.apache.spark" %% "spark-sql" %  sparkVersion,
+  "org.apache.spark" %% "spark-streaming" %  sparkVersion,
   //"org.apache.logging.log4j" %% "log4j-api-scala" % "11.0"
   "org.postgresql" % "postgresql" % "42.2.18.jre7"
 ).map(_.exclude("org.slf4j", "slf4j-log4j12"))

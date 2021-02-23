@@ -4,7 +4,7 @@ import java.util.UUID
 
 /**
  * Common trait of all trials. Trials can be driven turn-by-turn till it gets to an isFinished=true state
- * or can be started by run where the control is given back to the framework after the trial is fully finished with
+ * or can be started by createOutputRDD where the control is given back to the framework after the trial is fully finished with
  * all of its turns.
  *
  * All Trials subclasses inherit an universal unique ID
