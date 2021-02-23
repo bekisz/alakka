@@ -1,6 +1,9 @@
 package org.montecarlo.examples.pi
 
-import org.montecarlo.{EmptyInput, Experiment, Output, Trial}
+import ch.qos.logback.classic.Logger
+import org.apache.spark.sql.DataFrame
+import org.montecarlo._
+import org.slf4j.LoggerFactory
 
 import scala.math.random
 
@@ -33,20 +36,23 @@ class PiTrial(val maxTurns: Long = 1) extends Trial with Serializable {
 
 /**
  * This is will act as one row in our huge table of all Monte Carlo experiment results
+ *
  * @param piValue 0 or 4
  */
-case class PiOutput(piValue: Double)  extends Output
+case class PiOutput(piValue: Double) extends Output
+
 object PiOutput extends Output {
   def apply(t: PiTrial): PiOutput = new PiOutput(t.piValue)
 }
 
 /**
  * The case class for final results
+ *
  * @param count The number of results yielded by the Monte Carlo experiments
- * @param pi The empirical pi = mean of [[PiOutput.piValue]]s
+ * @param pi    The empirical pi = mean of [[PiOutput.piValue]]s
  * @param error The sampling error with given confidence level
  */
-case class AggrPiOutput(count:Long, pi:Double, error:Double)
+case class AggrPiOutput(count: Long, pi: Double, error: Double)
 
 
 /**
@@ -54,27 +60,30 @@ case class AggrPiOutput(count:Long, pi:Double, error:Double)
  * Pi is estimated by the ratio of points within 1 unit of distance from origin.
  */
 object PiExperiment {
+  private val log: Logger = LoggerFactory.getLogger(getClass.getName).asInstanceOf[Logger]
+
   def main(args: Array[String]): Unit = {
 
     val experiment = new Experiment[EmptyInput, PiTrial, PiOutput](
       name = "Monte Carlo Pi",
-      monteCarloMultiplicity = if (args.length > 0) args(0).toLong else 10*1000L,
+      monteCarloMultiplicity = 100*1000, //Experiment.Infinite,
       trialBuilderFunction = _ => new PiTrial(1000),
       outputCollectorBuilderFunction = PiOutput(_),
       outputCollectorNeededFunction = _.turn() != 0 // we don't need initial pre-createOutputRDD trial outputs
+       //streamingConfig = StreamingConfig(Seconds(3), 100)
     )
-    val conf = 0.95
-    import experiment.spark.implicits._
+    val conf = 0.999
+    var piOutputAllDF:DataFrame = null
+    experiment.foreachRDD(rdd => {
+      import experiment.spark.implicits._
+      piOutputAllDF = if (piOutputAllDF == null)  rdd.toDF() else piOutputAllDF.union(rdd.toDF())
 
-    experiment.createOutputRDD().toDS().createTempView(PiOutput.name)
-    val out = experiment.spark
-      .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
-        + s" from ${PiOutput.name}").as[AggrPiOutput].first()
-
-    println(s"The empirical Pi is ${out.pi} +/-${out.error} with ${conf*100}% confidence level.")
-    println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${out.count} output results with UDAF.")
-
-    experiment.spark.stop()
+      piOutputAllDF.createOrReplaceTempView(PiOutput.name)
+      val out = experiment.spark
+        .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
+          + s" from ${PiOutput.name}").as[AggrPiOutput].first()
+      log.info(s"The empirical Pi is ${out.pi} +/-${out.error} with ${conf * 100}% confidence level.")
+    })
+    experiment.run()
   }
-
 }

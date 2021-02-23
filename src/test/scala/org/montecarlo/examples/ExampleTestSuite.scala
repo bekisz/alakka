@@ -56,7 +56,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       import experiment.spark.implicits._
       experiment.createOutputRDD().toDS().createTempView(PiOutput.name)
       val out = experiment.spark
-        .sql(s"select count(sumOf) as count, avg(sumOf) as pi, error(sumOf, ${conf.toString}) as error"
+        .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
           + s" from ${PiOutput.name}").as[AggrPiOutput].first()
 
       println(s"The empirical Pi is ${out.pi} +/-${out.error} with ${conf*100}% confidence level.")
@@ -133,6 +133,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     )
     import experiment.spark.implicits._
     val trialOutputDS = experiment.createOutputRDD().toDS().cache()
+    trialOutputDS.toDF().createTempView(GwrOutput.name)
     trialOutputDS.show(20)
 
 
@@ -141,8 +142,8 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     trialOutputDS.toDF().groupBy(experiment.input).calculateConfidenceIntervals(
       "seedSurvivalChance", List(0.95, 0.99, 0.999)).orderBy(experiment.input).show()
 
-    val turns = experiment.spark.table(GwOutput.name).countTurns()
-    val trials = experiment.spark.table(GwOutput.name).countTrials()
+    val turns = experiment.spark.table(GwrOutput.name).countTurns()
+    val trials = experiment.spark.table(GwrOutput.name).countTrials()
     println(s"Distinct trials captured : $trials")
     println(s"Distinct turns captured : $turns")
     assert(trials == experiment.multiplicity())
@@ -169,6 +170,8 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     )
     import experiment.spark.implicits._
     val trialOutputDS = experiment.createOutputRDD().toDS().cache()
+    trialOutputDS.toDF().createTempView(ReplicatorOutput.name)
+
     trialOutputDS.show(20)
 
 
@@ -179,8 +182,8 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       .orderBy(experiment.input).show(100)
 
 
-    val turns = experiment.spark.table(GwOutput.name).countTurns()
-    val trials = experiment.spark.table(GwOutput.name).countTrials()
+    val turns = experiment.spark.table(ReplicatorOutput.name).countTurns()
+    val trials = experiment.spark.table(ReplicatorOutput.name).countTrials()
     println(s"Distinct trials captured : $trials")
     println(s"Distinct turns captured : $turns")
     assert(trials == experiment.multiplicity())
