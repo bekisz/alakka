@@ -6,7 +6,7 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.streaming.Seconds
 import org.montecarlo.Implicits._
 import org.montecarlo.examples.pi.{AggrPiOutput, PiOutput, PiTrial}
-import org.montecarlo.{DoubleAccumulatorWithError, Experiment, Input, StreamingConfig}
+import org.montecarlo.{DoubleAccumulatorWithError, Experiment, Input}
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
 import org.slf4j.LoggerFactory
@@ -57,7 +57,7 @@ class PiPerformanceTestSuite extends AnyFunSuite with BeforeAndAfter {
       sparkConf = testSparkConf
     )
     import experiment.spark.implicits._
-    experiment.createOutputRDD().toDF().createTempView(PiOutput.name)
+    experiment.outputRDD.toDF().createTempView(PiOutput.name)
     val aggrOut = experiment.spark
       .sql(s"select count(piValue) as count, avg(piValue) as pi  from ${PiOutput.name}")
       .cache()
@@ -78,7 +78,7 @@ class PiPerformanceTestSuite extends AnyFunSuite with BeforeAndAfter {
       sparkConf = testSparkConf
     )
     import experiment.spark.implicits._
-    val myPiCI = experiment.createOutputRDD().toDF().calculateConfidenceInterval(0.99999)
+    val myPiCI = experiment.outputRDD.toDF().calculateConfidenceInterval(0.99999)
     println(s"The empirical Pi is ${myPiCI.mean} +/-${myPiCI.mean - myPiCI.low}"
       + s" with ${myPiCI.confidence * 100}% confidence level.")
     println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${myPiCI.sampleCount} output results.")
@@ -100,7 +100,7 @@ class PiPerformanceTestSuite extends AnyFunSuite with BeforeAndAfter {
     )
     import experiment.spark.implicits._
 
-    experiment.createOutputRDD().toDF().createOrReplaceTempView(PiOutput.name)
+    experiment.outputRDD.toDF().createOrReplaceTempView(PiOutput.name)
     val out = experiment.spark
       .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
         + s" from ${PiOutput.name}").as[AggrPiOutput].first()
@@ -121,46 +121,56 @@ class PiPerformanceTestSuite extends AnyFunSuite with BeforeAndAfter {
       trialBuilderFunction = trialBuilderFunction,
       outputCollectorBuilderFunction = PiOutput(_),
       outputCollectorNeededFunction = _.turn() != 0,
-      streamingConfig = StreamingConfig(Seconds(3), 100),
+      samplingInterval = Seconds(2),
+      microBatchSize = 100,
       sparkConf = testSparkConf
-    )
-    val piAccumulator = new DoubleAccumulatorWithError
-    experiment.spark.sparkContext.register(piAccumulator, "piAccumulator")
-    experiment.foreachRDD(rdd => {
-      val dartsProcessed = rdd.map(out => {
-        piAccumulator.add(out.piValue); out
-      }).count()
-      log.info(s"Empirical Pi = ${piAccumulator.avg} +/-${piAccumulator.error(conf)}" +
-        s" with ${conf * 100}% confidence level." +
-        s"\n       - # of pi estimates received so far (piAccumulator.count) = ${piAccumulator.count}" +
-        s"\n       - Latest batch of turns (rdd.count) = $dartsProcessed ")
-    })
+    ) {
+      val piAccumulator = new DoubleAccumulatorWithError
+      this.spark.sparkContext.register(piAccumulator, "piAccumulator")
+      override def run(): Unit = {
+        val conf = 0.999
+
+        import this.spark.implicits._
+        val outputRDD = this.outputRDD.toDS.map(out => {
+          piAccumulator.add(out.piValue)
+          out
+        })
+        var t0 = java.lang.System.currentTimeMillis()
+        while (true) {
+          val dartsProcessed = outputRDD.count()
+          val t1 = java.lang.System.currentTimeMillis()
+          if (t1 - t0 > this.samplingInterval.milliseconds) {
+            t0 = java.lang.System.currentTimeMillis()
+            log.info(s"Empirical Pi = ${piAccumulator.avg} +/-${piAccumulator.error(conf)}" +
+              s" with ${conf * 100}% confidence level." +
+              s"\n       - # of pi estimates received so far (piAccumulator.count) = ${piAccumulator.count}" +
+              s"\n       - Latest batch of turns (rdd.count) = $dartsProcessed ")
+          }
+        }
+
+      }
+    }
+
+
     experiment.run()
-    experiment.spark.stop()
+
     // We let it fail when 99.9...% confidence interval doesn't include the Math.PI
-    assert(piAccumulator.avg - piAccumulator.error(conf) < Math.PI
-      && Math.PI < piAccumulator.avg + piAccumulator.error(conf))
+    assert(experiment.piAccumulator.avg - experiment.piAccumulator.error(conf) < Math.PI
+      && Math.PI < experiment.piAccumulator.avg + experiment.piAccumulator.error(conf))
+    experiment.spark.stop()
   }
-  test("With SQL Error UDAF and Streaming - Pi Approximation") {
+  ignore("With SQL Error UDAF and Streaming - Pi Approximation") {
     val experiment = new Experiment[Input, PiTrial, PiOutput](
       name = "Estimation of Pi by Monte Carlo method with User Defined Aggregation Function",
       monteCarloMultiplicity = piMultiplicity,
       trialBuilderFunction = trialBuilderFunction,
       outputCollectorBuilderFunction = PiOutput(_),
       outputCollectorNeededFunction = _.turn() != 0,
-      streamingConfig = StreamingConfig(Seconds(3), 100),
+      samplingInterval = Seconds(2),
+      microBatchSize = 100,
       sparkConf = testSparkConf
     )
-    experiment.foreachRDD(rdd => {
-      import experiment.spark.implicits._
-      rdd.toDF().createOrReplaceTempView(PiOutput.name)
-      val out = experiment.spark
-        .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
-          + s" from ${PiOutput.name}").as[AggrPiOutput].first()
-      log.info(s"The empirical Pi is ${out.pi} +/-${out.error} with ${conf * 100}% confidence level.")
-      if (out.count > 100)
-        assert(out.pi-out.error < Math.PI && out.pi  < out.pi + out.error)
-    })
+
     experiment.run()
     experiment.spark.stop()
   }
@@ -171,20 +181,12 @@ class PiPerformanceTestSuite extends AnyFunSuite with BeforeAndAfter {
       trialBuilderFunction = trialBuilderFunction,
       outputCollectorBuilderFunction = PiOutput(_),
       outputCollectorNeededFunction = _.turn() != 0,
-      streamingConfig = StreamingConfig(Seconds(3), 100),
+      samplingInterval = Seconds(2),
+      microBatchSize = 100,
       sparkConf = testSparkConf
     )
     var piOutputAllDF:DataFrame = null
-    experiment.foreachRDD(rdd => {
-      import experiment.spark.implicits._
-      piOutputAllDF = if (piOutputAllDF == null)  rdd.toDF() else piOutputAllDF.union(rdd.toDF())
 
-      piOutputAllDF.createOrReplaceTempView(PiOutput.name)
-      val out = experiment.spark
-        .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
-          + s" from ${PiOutput.name}").as[AggrPiOutput].first()
-      log.info(s"The empirical Pi is ${out.pi} +/-${out.error} with ${conf * 100}% confidence level.")
-    })
     experiment.run()
   }
 

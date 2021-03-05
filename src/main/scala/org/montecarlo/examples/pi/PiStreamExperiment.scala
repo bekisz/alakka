@@ -2,7 +2,7 @@ package org.montecarlo.examples.pi
 
 import ch.qos.logback.classic.Logger
 import org.apache.spark.streaming.Seconds
-import org.montecarlo.{DoubleAccumulatorWithError, EmptyInput, Experiment, StreamingConfig}
+import org.montecarlo.{DoubleAccumulatorWithError, EmptyInput, Experiment}
 import org.slf4j.LoggerFactory
 /**
  * Picks points randomly in a 2x2 box centered in the origin.
@@ -20,20 +20,25 @@ object PiStreamExperiment {
       monteCarloMultiplicity = 100*1000,
       trialBuilderFunction = _ => new PiTrial(1000),
       outputCollectorBuilderFunction = PiOutput(_),
-      outputCollectorNeededFunction = _.turn() != 0, // we don't need initial pre-run trial outputs
-      streamingConfig = StreamingConfig(Seconds(2), 100)
-      //streamingConfig = StreamingConfig.noStreaming
-    )
-    val conf = 0.999
-    val piAccumulator = new DoubleAccumulatorWithError
-    experiment.spark.sparkContext.register(piAccumulator, "piAccumulator")
-    experiment.foreachRDD(rdd => {
-      val dartsProcessed = rdd.map(out => {piAccumulator.add(out.piValue); out}).count()
-      log.info(s"Empirical Pi = ${piAccumulator.avg} +/-${piAccumulator.error(conf)}" +
-        s" with ${conf * 100}% confidence level." +
-        s"\n       - # of pi estimates received so far (piAccumulator.count) = ${piAccumulator.count}"+
-        s"\n       - Latest batch of turns (rdd.count) = $dartsProcessed ")
-    })
+      outputCollectorNeededFunction = _.turn() != 0 // we don't need initial pre-run trial outputs
+      //samplingInterval =
+    ) {
+      override def run(): Unit =  {
+        val conf = 0.999
+        val piAccumulator = new DoubleAccumulatorWithError
+        this.spark.sparkContext.register(piAccumulator, "piAccumulator")
+
+        while(true) {
+          val dartsProcessed = this.outputRDD.map(out => {piAccumulator.add(out.piValue); out}).count()
+          log.info(s"Empirical Pi = ${piAccumulator.avg} +/-${piAccumulator.error(conf)}" +
+            s" with ${conf * 100}% confidence level." +
+            s"\n       - # of pi estimates received so far (piAccumulator.count) = ${piAccumulator.count}"+
+            s"\n       - Latest batch of turns (rdd.count) = $dartsProcessed ")
+        }
+
+
+      }
+    }
     experiment.run()
   }
 

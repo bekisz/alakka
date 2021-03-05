@@ -2,6 +2,7 @@ package org.montecarlo.examples.pi
 
 import ch.qos.logback.classic.Logger
 import org.apache.spark.sql.DataFrame
+import org.apache.spark.streaming.Seconds
 import org.montecarlo._
 import org.slf4j.LoggerFactory
 
@@ -66,24 +67,41 @@ object PiExperiment {
 
     val experiment = new Experiment[EmptyInput, PiTrial, PiOutput](
       name = "Monte Carlo Pi",
-      monteCarloMultiplicity = 100*1000, //Experiment.Infinite,
+      monteCarloMultiplicity = Experiment.Infinite,
       trialBuilderFunction = _ => new PiTrial(1000),
       outputCollectorBuilderFunction = PiOutput(_),
-      outputCollectorNeededFunction = _.turn() != 0 // we don't need initial pre-createOutputRDD trial outputs
-       //streamingConfig = StreamingConfig(Seconds(3), 100)
-    )
-    val conf = 0.999
-    var piOutputAllDF:DataFrame = null
-    experiment.foreachRDD(rdd => {
-      import experiment.spark.implicits._
-      piOutputAllDF = if (piOutputAllDF == null)  rdd.toDF() else piOutputAllDF.union(rdd.toDF())
+      outputCollectorNeededFunction = _.turn() != 0, // we don't need initial pre-createOutputRDD trial outputs
+      samplingInterval = Seconds(2),
+      microBatchSize = 100
+    ) {
 
-      piOutputAllDF.createOrReplaceTempView(PiOutput.name)
-      val out = experiment.spark
-        .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
-          + s" from ${PiOutput.name}").as[AggrPiOutput].first()
-      log.info(s"The empirical Pi is ${out.pi} +/-${out.error} with ${conf * 100}% confidence level.")
-    })
+      val conf = 0.999
+      var piOutputAllDF: Option[DataFrame] = None
+      import spark.implicits._
+      override def onIntervalEnded(): Unit = {
+        //piOutputAllDF.get
+        this.piOutputAllDF match {
+          case Some(aggregatedDF: DataFrame) => aggregatedDF.createOrReplaceTempView(PiOutput.name)
+            val out = this.spark
+              .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
+                + s" from ${PiOutput.name}").as[AggrPiOutput].first()
+            log.info(s"The empirical Pi is ${out.pi} +/-${out.error} with ${conf * 100}% confidence level." +
+              s"\n       - # of pi estimates received so far (out.count) = ${out.count}" +
+              s"\n       - Total trials executed = ${trialsExecuted()}" +
+              s"\n       - Velocity = " + f"${this.avgTrialExecutionSpeedInSecs()}%1.3f trials/s" +
+              f" = ${this.avgTurnExecutionSpeedInSecs()}%1.0f turns/s"
+            )
+          case _ => log.warn("Empty aggregated results set")
+        }
+      }
+
+      override def processMicroBatch(): Unit = {
+        this.piOutputAllDF = this.piOutputAllDF match {
+          case Some(aggregatedDF: DataFrame) => Some(aggregatedDF.union(this.outputRDD.toDF()))
+          case _ => Some(this.outputRDD.toDF())
+        }
+      }
+    }
     experiment.run()
   }
 }

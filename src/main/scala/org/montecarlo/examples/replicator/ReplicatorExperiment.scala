@@ -117,7 +117,7 @@ object ReplicatorExperiment {
       val inputParamNames = experiment.input.fetchParameterMap().keySet.mkString(", ")
 
       val prolongTrialsTill = 50 //turns
-      experiment.createOutputRDD().toDF().retroActivelyProlongTrials(prolongTrialsTill)
+      experiment.outputRDD.toDF().retroActivelyProlongTrials(prolongTrialsTill)
         .createTempView(ReplicatorOutput.name)
       //val outputDF = experiment.spark.table(ReplicatorOutput.tableName)
       //log.debug(s"Distinct trials captured : ${outputDF.countTrials()}")

@@ -1,23 +1,20 @@
 package org.montecarlo
 
-import ch.qos.logback.classic.Logger
 import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.streaming.{Duration, Milliseconds, StreamingContext}
-import org.montecarlo.utils.{HasMeasuredLifeTime, Statistics, Time}
-import org.slf4j.LoggerFactory
+import org.apache.spark.streaming.Duration
+import org.montecarlo.utils.{HasMeasuredLifeTime, Logging, Statistics, Time}
 
 import java.util.UUID
-import scala.collection.mutable
 import scala.reflect.ClassTag
 
-case class StreamingConfig(samplingInterval: Duration, monteCarloMultiplicityPerBatches: Long)
-
+//case class StreamingConfig(samplingInterval: Duration, monteCarloMultiplicityPerBatches: Long)
+/*
 object StreamingConfig {
   val noStreaming: StreamingConfig = StreamingConfig(Milliseconds(Long.MaxValue), 0L)
 }
-
+*/
 /**
  * A generic implementation of a Monte-carlo experiment.
  *
@@ -46,22 +43,20 @@ class Experiment[InputType <: Input : ClassTag,
 (val name: String,
  val input: InputType = EmptyInput(),
  val monteCarloMultiplicity: Long = 1000,
- val streamingConfig: StreamingConfig = StreamingConfig.noStreaming,
+ val microBatchSize: Long = 1, // n = means n* input.multiplicity() trials to be executed
+ //val streamingConfig: StreamingConfig = StreamingConfig.noStreaming,
+ val samplingInterval: Duration = null,
  val trialBuilderFunction: InputType => TrialType,
  val outputCollectorBuilderFunction: TrialType => OutputType,
  val outputCollectorNeededFunction: TrialType => Boolean,
  val sparkConf: SparkConf = new SparkConf(),
  val experimentId: String = UUID.randomUUID().toString
-) extends HasMultiplicity with HasMeasuredLifeTime {
+) extends HasMultiplicity with HasMeasuredLifeTime with Logging {
 
-  if (this.streamingConfig == StreamingConfig.noStreaming && this.monteCarloMultiplicity == Experiment.Infinite)
-    throw new IllegalArgumentException("Non-streaming experiment with infinite monteCarloMultiplicity never ends")
+  if (this.samplingInterval == null && this.monteCarloMultiplicity == Experiment.Infinite)
+    throw new IllegalArgumentException("No mid-flight sampling while experiment with " +
+      "infinite monteCarloMultiplicity never ends")
   val spark: SparkSession = SparkSession.builder.config(sparkConf).appName(name).getOrCreate()
-  private val outputRddQueue = new mutable.SynchronizedQueue[RDD[OutputType]]()
-  private val ssc: StreamingContext
-  = new StreamingContext(this.spark.sparkContext, streamingConfig.samplingInterval)
-  private val outputStream = ssc.queueStream(outputRddQueue, oneAtATime = false)
-
   private val errorUdfFunc: (Double, Double, Double, Double)
     => Double = (weight, sum, sum2, confidence) => {
     val mean = sum / weight
@@ -69,53 +64,89 @@ class Experiment[InputType <: Input : ClassTag,
     val (low, _) = Statistics.confidenceInterval(weight.toLong, mean, stdDev, confidence)
     mean - low
   }
-  private val log: Logger = LoggerFactory.getLogger(getClass.getName).asInstanceOf[Logger]
-  private val trialsStartedAccumulator = spark.sparkContext.longAccumulator("trialsStartedAccumulator")
+
   this.spark.udf.register("errorUdfFunc", errorUdfFunc)
 
   this.spark.udf.register("error", new ErrorUDAF)
   this.spark.udf.register("weightedError", new WeightedErrorUDAF)
   this.spark.udf.register("weightedAverage", new WeightedAverageUDAF)
+  private val trialsStartedAccumulator = spark.sparkContext.longAccumulator("trialsStartedAccumulator")
   private val trialTurnsExecutedAccumulator = spark.sparkContext.longAccumulator("trialTurnsExecutedAccumulator")
+
+  val outputRDD = this.createOutputRDD(this.microBatchSize)
 
   log.info(s"Created ${this.toString} experiment with id ${this.experimentId}...")
   log.debug(this.describe())
 
-  var rddActionFunction: RDD[OutputType] => Unit
-  = { _ =>
-    throw new UnsupportedOperationException(
-      "Experiment run was called before specifying and RDD Action function with foreachRDD")
-  }
-
-  def foreachRDD(rddActionFunction: RDD[OutputType] => Unit): Unit = {
-    this.rddActionFunction = rdd=>  rddActionFunction(rdd)
-    if (this.streamingConfig != StreamingConfig.noStreaming) { // Spark Streaming Solution
-      this.outputStream.foreachRDD(this.rddActionFunction)
-    }
-  }
-
   def run(): Unit = {
-    if (this.streamingConfig != StreamingConfig.noStreaming) { // Spark Streaming Solution
-      ssc.start()
-      if (this.multiplicity() == Experiment.Infinite)
-        while (true)
-          outputRddQueue += this.createOutputRDD(streamingConfig.monteCarloMultiplicityPerBatches)
-      else {
-        for (_ <- this.multiplicity() to 1 by -this.streamingConfig.monteCarloMultiplicityPerBatches)
-          outputRddQueue += this.createOutputRDD(streamingConfig.monteCarloMultiplicityPerBatches)
-        outputRddQueue += this.createOutputRDD(this.multiplicity()
-          % streamingConfig.monteCarloMultiplicityPerBatches)
+    var timer = new HasMeasuredLifeTime {}
+    while (!this.isFinished()) {
+      this.processMicroBatch()
+      if (this.samplingInterval != null && timer.lifeTime() > this.samplingInterval.milliseconds) {
+        timer = new HasMeasuredLifeTime {}
+        this.onIntervalEnded()
       }
-      log.debug(s"Created OutputRDD(s)")
-      ssc.stop(false, true)
+    }
 
-    } else this.rddActionFunction(this.createOutputRDD()) // Traditional one big RDD solution
+    this.onFinish()
+
+  }
+
+  def onFinish(): Unit = {
+    this.onIntervalEnded()
     log.info(s"Experiment finished after ${Time.durationFromMillisToHumanReadable(this.lifeTime())}"
       + s"\n        - Total trials executed = ${trialsExecuted()}"
       + s"\n        - Velocity = " + f"${this.avgTrialExecutionSpeedInSecs()}%1.3f trials/s" +
       f" = ${this.avgTurnExecutionSpeedInSecs()}%1.0f turns/s"
     )
+
   }
+
+  def onIntervalEnded(): Unit = {}
+
+  def trialsExecuted(): Long = this.trialTurnsExecutedAccumulator.count
+
+  def avgTrialExecutionSpeedInSecs(): Double
+  = this.trialTurnsExecutedAccumulator.count.toDouble / this.lifeTime() * 1000
+
+  def avgTurnExecutionSpeedInSecs(): Double
+  = this.trialTurnsExecutedAccumulator.sum.toDouble / this.lifeTime() * 1000
+
+  def processMicroBatch(): Unit = {}
+
+  def isFinished(): Boolean =
+    this.monteCarloMultiplicity != Experiment.Infinite &&
+      this.trialsStarted() >= this.multiplicity()
+
+  /**
+   * @return the number of Trial runs = input multiplicity x Monte-Carlo multiplicity
+   */
+  override def multiplicity(): Long
+  = if (this.monteCarloMultiplicity == Experiment.Infinite) Experiment.Infinite
+  else this.input.multiplicity() * this.monteCarloMultiplicity
+
+  def trialsStarted(): Long = this.trialsStartedAccumulator.count
+
+  /**
+   * Utility function to for fetching all debug info on this experiment
+   *
+   * @return
+   */
+  def describe(): String = {
+
+    s"\n - Experiment name         : ${this.name}" +
+      s"\n - Experiment id           : ${this.experimentId}" +
+      s"\n - Input Cardinality       : ${this.input.fetchParameters().map(_.multiplicity()).mkString("x")}" +
+      s"\n - Monte Carlo cardinality : ${this.monteCarloMultiplicity}" +
+      s"\n - Experiment cardinality  : ${this.multiplicity}" +
+      s"\n - Sampling Interval       : ${this.samplingInterval}" +
+      s"\n - MicroBatch Size         : ${this.microBatchSize}" +
+      s"\n - Spark version           : ${this.spark.sparkContext.version}"
+  }
+
+  override def toString: String = this.name
+
+  def turnsExecuted(): Long = this.trialTurnsExecutedAccumulator.sum
 
   /**
    * Explodes the initial single instance of InputType to feeds them to the Trials created by trialBuilderFunction.
@@ -123,7 +154,7 @@ class Experiment[InputType <: Input : ClassTag,
    *
    * @return the output RDD of trial outputs
    */
-  def createOutputRDD(monteCarloMultiplicity: Long = this.monteCarloMultiplicity): RDD[OutputType] = {
+  private def createOutputRDD(monteCarloMultiplicity: Long = this.monteCarloMultiplicity): RDD[OutputType] = {
     val trialInputs = this.input.createInputPermutations().asInstanceOf[Seq[InputType]]
     val thisOutputCollectorBuilderFunction = this.outputCollectorBuilderFunction
     val thisOutputCollectorNeededFunction = this.outputCollectorNeededFunction
@@ -151,51 +182,6 @@ class Experiment[InputType <: Input : ClassTag,
       }
       }
   }
-
-  def trialsExecuted(): Long = this.trialTurnsExecutedAccumulator.count
-
-  def avgTrialExecutionSpeedInSecs(): Double
-  = this.trialTurnsExecutedAccumulator.count.toDouble / this.lifeTime() * 1000
-
-  def avgTurnExecutionSpeedInSecs(): Double
-  = this.trialTurnsExecutedAccumulator.sum.toDouble / this.lifeTime() * 1000
-
-  /**
-   * Utility function to for fetching all debug info on this experiment
-   * @return
-   */
-  def describe(): String = {
-    val monteCarloMultiplicity = if (this.monteCarloMultiplicity == Experiment.Infinite) "Infinite"
-    else this.monteCarloMultiplicity.toString
-    val multiplicity = if (this.multiplicity() == Experiment.Infinite) "Infinite"
-    else this.multiplicity().toString
-    val usingStreaming = if (this.streamingConfig == StreamingConfig.noStreaming) "no" else "yes"
-    s"\n - Experiment name         : ${this.name}" +
-      s"\n - Experiment id           : ${this.experimentId}" +
-      s"\n - Input Cardinality       : ${this.input.fetchParameters().map(_.multiplicity()).mkString("x")}" +
-      s"\n - Monte Carlo cardinality : $monteCarloMultiplicity" +
-      s"\n - Experiment cardinality  : $multiplicity" +
-      s"\n - Streaming               : $usingStreaming" + {
-      if (this.streamingConfig != StreamingConfig.noStreaming) {
-        s"\n    - Sampling Interval         : ${streamingConfig.samplingInterval}" +
-          s"\n    - Monte Carlo cardinality per batch : ${streamingConfig.monteCarloMultiplicityPerBatches}"
-      } else ""
-    } +
-      s"\n - Spark version           : ${this.spark.sparkContext.version}"
-  }
-
-  /**
-   * @return the number of Trial runs = input multiplicity x Monte-Carlo multiplicity
-   */
-  override def multiplicity(): Long
-  = if (this.monteCarloMultiplicity == Experiment.Infinite) Experiment.Infinite
-  else this.input.multiplicity() * this.monteCarloMultiplicity
-
-  override def toString: String = this.name
-
-  def trialsStarted(): Long = this.trialsStartedAccumulator.count
-
-  def turnsExecuted(): Long = this.trialTurnsExecutedAccumulator.sum
 
 
 }

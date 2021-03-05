@@ -31,7 +31,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
         sparkConf = testSparkConf
       )
       import experiment.spark.implicits._
-      val myPiCI = experiment.createOutputRDD().toDF().calculateConfidenceInterval(0.99999)
+      val myPiCI = experiment.outputRDD.toDF().calculateConfidenceInterval(0.99999)
       println(s"The empirical Pi is ${myPiCI.mean} +/-${myPiCI.mean - myPiCI.low}"
         + s" with ${myPiCI.confidence * 100}% confidence level.")
       println(s"Run ${experiment.monteCarloMultiplicity} trials, yielding ${myPiCI.sampleCount} output results.")
@@ -54,7 +54,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       )
       val conf = 0.99999
       import experiment.spark.implicits._
-      experiment.createOutputRDD().toDS().createTempView(PiOutput.name)
+      experiment.outputRDD.toDS().createTempView(PiOutput.name)
       val out = experiment.spark
         .sql(s"select count(piValue) as count, avg(piValue) as pi, error(piValue, ${conf.toString}) as error"
           + s" from ${PiOutput.name}").as[AggrPiOutput].first()
@@ -88,7 +88,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
     import experiment.spark.implicits._
     val inputDimNames = experiment.input.fetchDimensions().mkString(", ")
 
-    experiment.createOutputRDD().toDS().createTempView(GwOutput.name)
+    experiment.outputRDD.toDS().createTempView(GwOutput.name)
 
     val sqlSeedSurvivalChance: String = s"select $inputDimNames, count(seedSurvivalChance) as trials, " +
       "avg(seedSurvivalChance) as seedSurvivalChance, " +
@@ -132,7 +132,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       sparkConf = testSparkConf
     )
     import experiment.spark.implicits._
-    val trialOutputDS = experiment.createOutputRDD().toDS().cache()
+    val trialOutputDS = experiment.outputRDD.toDS().cache()
     trialOutputDS.toDF().createTempView(GwrOutput.name)
     trialOutputDS.show(20)
 
@@ -169,7 +169,7 @@ class ExampleTestSuite extends AnyFunSuite with BeforeAndAfter {
       sparkConf = testSparkConf
     )
     import experiment.spark.implicits._
-    val trialOutputDS = experiment.createOutputRDD().toDS().cache()
+    val trialOutputDS = experiment.outputRDD.toDS().cache()
     trialOutputDS.toDF().createTempView(ReplicatorOutput.name)
 
     trialOutputDS.show(20)
